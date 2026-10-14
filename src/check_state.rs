@@ -59,7 +59,7 @@ impl CheckState {
     /// - any non-terminal state → `PARTIALLY_PAID` / `PAID` / `VOIDED`
     /// - `PAID → REFUNDED` (refund flow; never void)
     /// - `VOIDED` / `REFUNDED` terminal
-    ///
+///
     /// Handlers enforce hold/recall in SQL (`WHERE status = 'OPEN'`), so the
     /// matrix itself is only exercised from tests — targeted allow.
     #[allow(dead_code)]
