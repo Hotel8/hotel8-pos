@@ -15,9 +15,9 @@
 //! action via `crate::policy::require`. `sys:admin`/org/env-admin scopes pass
 //! through the mirror's admin permits — platform admins never bypass Shield.
 
+use crate::config::POSConfig;
 use axum::http::{HeaderMap, StatusCode};
 pub use sentin8::auth::client::AuthContext;
-use crate::config::POSConfig;
 
 pub async fn verify_token(
     config: &POSConfig,
@@ -25,4 +25,3 @@ pub async fn verify_token(
 ) -> Result<AuthContext, (StatusCode, String)> {
     sentin8::auth::client::verify_bearer_token(&config.sentin8_auth_client, headers).await
 }
-

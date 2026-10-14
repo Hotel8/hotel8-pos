@@ -5,23 +5,29 @@
 
 //! Table management handlers — CRUD, status, combine/separate, floor plan.
 //! Implements -.
+use crate::auth;
+use crate::event_emit::emit_tx;
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
-use crate::event_emit::emit_tx;
 
 fn err_bad_request(msg: &str) -> (StatusCode, String) {
     (StatusCode::BAD_REQUEST, msg.to_string())
 }
 
 /// The set of valid `pos_table_status` enum values.
-const VALID_STATUSES: &[&str] = &["AVAILABLE", "OCCUPIED", "RESERVED", "DIRTY", "OUT_OF_SERVICE"];
+const VALID_STATUSES: &[&str] = &[
+    "AVAILABLE",
+    "OCCUPIED",
+    "RESERVED",
+    "DIRTY",
+    "OUT_OF_SERVICE",
+];
 
 fn is_valid_status(s: &str) -> bool {
-    VALID_STATUSES.iter().any(|v| *v == s)
+    VALID_STATUSES.contains(&s)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -35,30 +41,52 @@ pub async fn create_table(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let service_area_id: uuid::Uuid = req.get("service_area_id")
+    let service_area_id: uuid::Uuid = req
+        .get("service_area_id")
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "service_area_id is required".to_string()))?;
-    let table_number = req.get("table_number").and_then(|v| v.as_str())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "table_number is required".to_string()))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "service_area_id is required".to_string(),
+            )
+        })?;
+    let table_number = req
+        .get("table_number")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "table_number is required".to_string(),
+            )
+        })?;
     let table_name = req.get("table_name").and_then(|v| v.as_str());
     let capacity: i32 = req.get("capacity").and_then(|v| v.as_i64()).unwrap_or(4) as i32;
 
     // Verify the service area belongs to this outlet.
-    let _ = sqlx::query("SELECT id FROM pos.service_areas WHERE id = $1 AND revenue_center_id = $2")
-        .bind(service_area_id)
-        .bind(outlet_id)
-        .fetch_one(&mut *conn)
-        .await
-        .map_err(|e| match e {
-            sqlx::Error::RowNotFound => super::err_not_found("Service area not found for this outlet"),
-            e => super::err_db(e),
-        })?;
+    let _ =
+        sqlx::query("SELECT id FROM pos.service_areas WHERE id = $1 AND revenue_center_id = $2")
+            .bind(service_area_id)
+            .bind(outlet_id)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::RowNotFound => {
+                    super::err_not_found("Service area not found for this outlet")
+                }
+                e => super::err_db(e),
+            })?;
 
     let row = sqlx::query(
         "INSERT INTO pos.tables (service_area_id, table_number, table_name, capacity) \
@@ -75,8 +103,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
 
     let id: uuid::Uuid = row.get("id");
     let status: String = row.get("status");
-    emit_tx(&mut *conn, env_id, "hotel8:pos:table:created", serde_json::json!({ "table_id": id, "outlet_id": outlet_id, "table_number": table_number }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:table:created",
+        serde_json::json!({ "table_id": id, "outlet_id": outlet_id, "table_number": table_number }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
 
     conn.commit().await.map_err(super::err_db)?;
 
@@ -101,7 +136,13 @@ pub async fn list_tables(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -170,7 +211,13 @@ pub async fn get_table(
     Path((outlet_id, table_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -214,7 +261,13 @@ pub async fn update_table(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -235,7 +288,10 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     })?;
 
     let table_name = req.get("table_name").and_then(|v| v.as_str());
-    let capacity: Option<i32> = req.get("capacity").and_then(|v| v.as_i64()).map(|c| c as i32);
+    let capacity: Option<i32> = req
+        .get("capacity")
+        .and_then(|v| v.as_i64())
+        .map(|c| c as i32);
     let status = req.get("status").and_then(|v| v.as_str());
 
     // Validate status if provided.
@@ -268,8 +324,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
 
     let id: uuid::Uuid = row.get("id");
     let new_status: String = row.get("status");
-    emit_tx(&mut *conn, env_id, "hotel8:pos:table:updated", serde_json::json!({ "table_id": id, "outlet_id": outlet_id, "status": new_status }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:table:updated",
+        serde_json::json!({ "table_id": id, "outlet_id": outlet_id, "status": new_status }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
 
     conn.commit().await.map_err(super::err_db)?;
 
@@ -293,7 +356,13 @@ pub async fn delete_table(
     Path((outlet_id, table_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -336,8 +405,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .await
         .map_err(super::err_db)?;
 
-    emit_tx(&mut *conn, env_id, "hotel8:pos:table:deleted", serde_json::json!({ "table_id": table_id, "outlet_id": outlet_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:table:deleted",
+        serde_json::json!({ "table_id": table_id, "outlet_id": outlet_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
 
     conn.commit().await.map_err(super::err_db)?;
 
@@ -359,12 +435,20 @@ pub async fn update_table_status(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let status = req.get("status").and_then(|v| v.as_str())
+    let status = req
+        .get("status")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "status is required".to_string()))?;
     if !is_valid_status(status) {
         return Err(err_bad_request(
@@ -398,7 +482,16 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     } else {
         // For other statuses, leave the current check unchanged.
         // We use a scout below to indicate "no change".
-        return update_table_status_no_check_change(&state, &mut conn, env_id, outlet_id, table_id, status, &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await;
+        return update_table_status_no_check_change(
+            &state,
+            &mut conn,
+            env_id,
+            outlet_id,
+            table_id,
+            status,
+            &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+        )
+        .await;
     };
 
     let row = sqlx::query(
@@ -419,13 +512,20 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .map_err(super::err_db)?;
 
     let new_status: String = row.get("status");
-    emit_tx(&mut *conn, env_id, "hotel8:pos:table:status_changed", serde_json::json!({
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:table:status_changed",
+        serde_json::json!({
             "table_id": table_id,
             "outlet_id": outlet_id,
             "status": new_status,
             "current_check_id": row.get::<Option<uuid::Uuid>, _>("current_check_id"),
         }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
 
     conn.commit().await.map_err(super::err_db)?;
 
@@ -469,13 +569,20 @@ async fn update_table_status_no_check_change(
     .map_err(super::err_db)?;
 
     let new_status: String = row.get("status");
-    emit_tx(&mut *conn, env_id, "hotel8:pos:table:status_changed", serde_json::json!({
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:table:status_changed",
+        serde_json::json!({
             "table_id": table_id,
             "outlet_id": outlet_id,
             "status": new_status,
             "current_check_id": row.get::<Option<uuid::Uuid>, _>("current_check_id"),
         }),
-        publisher).await.map_err(super::err_emit)?;
+        publisher,
+    )
+    .await
+    .map_err(super::err_emit)?;
 
     Ok(Json(serde_json::json!({
         "id": row.get::<uuid::Uuid, _>("id"),
@@ -502,7 +609,13 @@ pub async fn combine_tables(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -510,17 +623,31 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     let table_ids: Vec<uuid::Uuid> = req
         .get("table_ids")
         .and_then(|v| v.as_array())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "table_ids array is required".to_string()))?
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "table_ids array is required".to_string(),
+            )
+        })?
         .iter()
         .filter_map(|v| v.as_str().and_then(|s| uuid::Uuid::parse_str(s).ok()))
         .collect();
 
     if table_ids.len() < 2 {
-        return Err(err_bad_request("At least two table_ids are required to combine"));
+        return Err(err_bad_request(
+            "At least two table_ids are required to combine",
+        ));
     }
 
-    let combined_name = req.get("combined_name").and_then(|v| v.as_str())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "combined_name is required".to_string()))?;
+    let combined_name = req
+        .get("combined_name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "combined_name is required".to_string(),
+            )
+        })?;
 
     // Fetch all the source tables (validate they belong to this outlet).
     let rows = sqlx::query(
@@ -537,7 +664,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .map_err(super::err_db)?;
 
     if rows.len() != table_ids.len() {
-        return Err(super::err_not_found("One or more tables not found for this outlet"));
+        return Err(super::err_not_found(
+            "One or more tables not found for this outlet",
+        ));
     }
 
     // Use the first table's service area for the combined table.
@@ -577,14 +706,21 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     let combined_id: uuid::Uuid = row.get("id");
     let status: String = row.get("status");
 
-    emit_tx(&mut *conn, env_id, "hotel8:pos:tables:combined", serde_json::json!({
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:tables:combined",
+        serde_json::json!({
             "outlet_id": outlet_id,
             "combined_table_id": combined_id,
             "combined_name": combined_name,
             "source_table_ids": table_ids,
             "service_area_id": service_area_id,
         }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
 
     conn.commit().await.map_err(super::err_db)?;
 
@@ -614,12 +750,19 @@ pub async fn separate_tables(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let table_id: uuid::Uuid = req.get("table_id")
+    let table_id: uuid::Uuid = req
+        .get("table_id")
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "table_id is required".to_string()))?;
@@ -650,12 +793,19 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .await
         .map_err(super::err_db)?;
 
-    emit_tx(&mut *conn, env_id, "hotel8:pos:tables:separated", serde_json::json!({
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:tables:separated",
+        serde_json::json!({
             "outlet_id": outlet_id,
             "combined_table_id": table_id,
             "table_number": table_number,
         }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
 
     conn.commit().await.map_err(super::err_db)?;
 
@@ -678,7 +828,13 @@ pub async fn get_floor_plan(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;

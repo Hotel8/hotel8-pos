@@ -4,13 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! H8POS hardening handlers — -.
+use crate::auth;
+use crate::event_emit::{emit_on_pool, emit_tx};
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
-use crate::event_emit::{emit_tx, emit_on_pool};
 
 // ── User permissions — Server, Bartender, Shift Manager, General Manager, Administrator ──
 
@@ -19,7 +19,13 @@ pub async fn get_user_permissions(
     headers: axum::http::HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&_state.config, &headers).await?;
-crate::policy::require(&_state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:read")).await?;
+    crate::policy::require(
+        &_state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:read"),
+    )
+    .await?;
     // Return the permission matrix for H8POS roles
     Ok(Json(serde_json::json!({
         "roles": [
@@ -85,25 +91,51 @@ pub async fn manager_approve(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
-    let action_type = req.get("action_type").and_then(|v| v.as_str())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "action_type is required".to_string()))?;
+    let action_type = req
+        .get("action_type")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "action_type is required".to_string(),
+            )
+        })?;
     let amount_str = req.get("amount").and_then(|v| v.as_str()).unwrap_or("0");
-    let reference_id = req.get("reference_id").and_then(|v| v.as_str()).unwrap_or("");
+    let reference_id = req
+        .get("reference_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let manager_id = req.get("manager_id").and_then(|v| v.as_str()).unwrap_or("");
     let pin = req.get("pin").and_then(|v| v.as_str()).unwrap_or("");
     // In production, verify the manager PIN against Auth
     if pin.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "manager PIN is required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "manager PIN is required".to_string(),
+        ));
     }
     let approval_id = uuid::Uuid::new_v4();
-    emit_on_pool(&state.pool, env_id, "hotel8:pos:manager:approved", serde_json::json!({
+    emit_on_pool(
+        &state.pool,
+        env_id,
+        "hotel8:pos:manager:approved",
+        serde_json::json!({
             "approval_id": approval_id, "action_type": action_type,
             "amount": amount_str, "reference_id": reference_id,
             "manager_id": manager_id,
         }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     Ok(Json(serde_json::json!({
         "approval_id": approval_id,
         "action_type": action_type,
@@ -121,7 +153,13 @@ pub async fn get_offline_status(
     headers: axum::http::HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let _a = auth::verify_token(&_state.config, &headers).await?;
-crate::policy::require(&_state.policy, &_a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:read")).await?;
+    crate::policy::require(
+        &_state.policy,
+        &_a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:read"),
+    )
+    .await?;
     Ok(Json(serde_json::json!({
         "is_online": true,
         "queued_operations": 0,
@@ -136,10 +174,23 @@ pub async fn sync_offline_data(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:order:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:order:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
-    let operations = req.get("operations").and_then(|v| v.as_array())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "operations array is required".to_string()))?;
+    let operations = req
+        .get("operations")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "operations array is required".to_string(),
+            )
+        })?;
     let mut synced: Vec<serde_json::Value> = Vec::new();
     for op in operations {
         let op_type = op.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
@@ -149,8 +200,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         };
         synced.push(serde_json::json!({ "type": op_type, "status": status }));
     }
-    emit_on_pool(&state.pool, env_id, "hotel8:pos:offline:synced", serde_json::json!({ "operation_count": operations.len() }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_on_pool(
+        &state.pool,
+        env_id,
+        "hotel8:pos:offline:synced",
+        serde_json::json!({ "operation_count": operations.len() }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     Ok(Json(serde_json::json!({
         "synced": synced.len(),
         "operations": synced,
@@ -166,7 +224,13 @@ pub async fn route_order_to_kitchen(
     Path((outlet_id, check_id, order_id)): Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:order:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:order:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -177,24 +241,39 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          JOIN pos.menu_items m ON o.menu_item_id = m.id
          WHERE o.id = $1 AND o.check_id = $2",
     )
-    .bind(order_id).bind(check_id)
-    .fetch_one(&mut *conn).await.map_err(super::err_db)?;
+    .bind(order_id)
+    .bind(check_id)
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
     let item_name: String = order.get("item_name");
     let quantity: i32 = order.get("quantity");
     let special = order.get::<Option<String>, _>("special_instructions");
     // Route to printer group — in production, look up the printer group for the menu item's category
     let routing_id = uuid::Uuid::new_v4();
-    emit_tx(&mut *conn, env_id, "hotel8:pos:kitchen:order_routed", serde_json::json!({
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:kitchen:order_routed",
+        serde_json::json!({
             "routing_id": routing_id, "outlet_id": outlet_id,
             "check_id": check_id, "order_id": order_id,
             "item_name": &item_name, "quantity": quantity,
             "special_instructions": &special,
             "printer_group": "KITCHEN_MAIN",
         }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     // Update order status to SENT (already SENT from add_order_item, but ensure)
-    sqlx::query("UPDATE pos.orders SET sent_at = COALESCE(sent_at, now()), status = 'SENT' WHERE id = $1")
-        .bind(order_id).execute(&mut *conn).await.map_err(super::err_db)?;
+    sqlx::query(
+        "UPDATE pos.orders SET sent_at = COALESCE(sent_at, now()), status = 'SENT' WHERE id = $1",
+    )
+    .bind(order_id)
+    .execute(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "routing_id": routing_id,

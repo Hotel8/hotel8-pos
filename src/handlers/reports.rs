@@ -4,13 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! H8POS reporting handlers — -.
+use crate::auth;
+use crate::event_emit::{emit_on_pool, emit_tx};
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
-use crate::event_emit::{emit_tx, emit_on_pool};
 
 // ── Daily Sales Summary ──
 
@@ -32,11 +32,20 @@ pub async fn daily_sales_summary(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let date = params.get("date").and_then(|v| v.as_str()).unwrap_or("today");
+    let date = params
+        .get("date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("today");
     let row = sqlx::query(
         "SELECT
             COUNT(*) as total_checks,
@@ -73,12 +82,24 @@ pub async fn item_sales_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let start = params.get("startDate").and_then(|v| v.as_str()).unwrap_or("2020-01-01");
-    let end = params.get("endDate").and_then(|v| v.as_str()).unwrap_or("2030-12-31");
+    let start = params
+        .get("startDate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2020-01-01");
+    let end = params
+        .get("endDate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2030-12-31");
     let rows = sqlx::query(
         "SELECT o.menu_item_id, m.item_name, m.item_code,
                 SUM(o.quantity) as total_quantity,
@@ -92,18 +113,29 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          GROUP BY o.menu_item_id, m.item_name, m.item_code
          ORDER BY total_revenue DESC",
     )
-    .bind(outlet_id).bind(start).bind(end)
-    .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "menu_item_id": r.get::<uuid::Uuid, _>("menu_item_id"),
-        "item_name": r.get::<String, _>("item_name"),
-        "item_code": r.get::<String, _>("item_code"),
-        "total_quantity": r.get::<i64, _>("total_quantity"),
-        "total_revenue": r.get::<String, _>("total_revenue"),
-        "order_count": r.get::<i64, _>("order_count"),
-    })).collect();
+    .bind(outlet_id)
+    .bind(start)
+    .bind(end)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
+    let items: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "menu_item_id": r.get::<uuid::Uuid, _>("menu_item_id"),
+                "item_name": r.get::<String, _>("item_name"),
+                "item_code": r.get::<String, _>("item_code"),
+                "total_quantity": r.get::<i64, _>("total_quantity"),
+                "total_revenue": r.get::<String, _>("total_revenue"),
+                "order_count": r.get::<i64, _>("order_count"),
+            })
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "outlet_id": outlet_id, "startDate": start, "endDate": end, "items": items })))
+    Ok(Json(
+        serde_json::json!({ "outlet_id": outlet_id, "startDate": start, "endDate": end, "items": items }),
+    ))
 }
 
 // ── Labor Report ──
@@ -115,11 +147,20 @@ pub async fn labor_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let date = params.get("date").and_then(|v| v.as_str()).unwrap_or("today");
+    let date = params
+        .get("date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("today");
     // Labor data would come from an HR/scheduling system — return placeholder
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
@@ -143,11 +184,20 @@ pub async fn end_of_day_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let date = params.get("date").and_then(|v| v.as_str()).unwrap_or("today");
+    let date = params
+        .get("date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("today");
     // Sales summary
     let sales = sqlx::query(
         "SELECT
@@ -169,19 +219,32 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
          WHERE c.revenue_center_id = $1 AND c.opened_at::date = $2::date
          GROUP BY payment_type ORDER BY total_amount DESC",
     )
-    .bind(outlet_id).bind(date)
-    .fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let payment_breakdown: Vec<serde_json::Value> = payments.iter().map(|r| {
-        let pt: String = r.get("payment_type");
-        serde_json::json!({
-            "payment_type": pt,
-            "count": r.get::<i64, _>("count"),
-            "total_amount": r.get::<String, _>("total_amount"),
-            "total_tips": r.get::<String, _>("total_tips"),
+    .bind(outlet_id)
+    .bind(date)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(super::err_db)?;
+    let payment_breakdown: Vec<serde_json::Value> = payments
+        .iter()
+        .map(|r| {
+            let pt: String = r.get("payment_type");
+            serde_json::json!({
+                "payment_type": pt,
+                "count": r.get::<i64, _>("count"),
+                "total_amount": r.get::<String, _>("total_amount"),
+                "total_tips": r.get::<String, _>("total_tips"),
+            })
         })
-    }).collect();
-    emit_tx(&mut *conn, env_id, "hotel8:pos:report:eod_generated", serde_json::json!({ "outlet_id": outlet_id, "date": date }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+        .collect();
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:report:eod_generated",
+        serde_json::json!({ "outlet_id": outlet_id, "date": date }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "outlet_id": outlet_id, "date": date,
@@ -201,10 +264,22 @@ pub async fn export_report(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:report:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:report:read"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
-    let format = params.get("format").and_then(|v| v.as_str()).unwrap_or("csv");
-    let date = params.get("date").and_then(|v| v.as_str()).unwrap_or("today");
+    let format = params
+        .get("format")
+        .and_then(|v| v.as_str())
+        .unwrap_or("csv");
+    let date = params
+        .get("date")
+        .and_then(|v| v.as_str())
+        .unwrap_or("today");
     // Generate export — in production this would create a file and return a download URL
     let export_id = uuid::Uuid::new_v4();
     emit_on_pool(&state.pool, env_id, "hotel8:pos:report:export_requested", serde_json::json!({ "outlet_id": outlet_id, "report_type": &report_type, "format": format, "date": date, "export_id": export_id }),

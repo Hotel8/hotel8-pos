@@ -4,19 +4,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! H8POS HTTP handlers — re-exports from sub-modules.
-pub mod outlets;
+pub mod config;
+pub mod guest_ordering;
+pub mod hardening;
 pub mod menu;
 pub mod orders;
+pub mod outlets;
 pub mod payments;
-pub mod config;
-pub mod tables;
 pub mod reports;
-pub mod hardening;
-pub mod guest_ordering;
+pub mod tables;
 
-use std::sync::Arc;
 use crate::config::POSConfig;
 use sentin8::auth::client::AuthContext;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -51,10 +51,7 @@ pub async fn property_id_for_env_pool(
     .flatten()
 }
 
-pub async fn set_tenant_context(
-    conn: &mut sqlx::PgConnection,
-    env_id: uuid::Uuid,
-) {
+pub async fn set_tenant_context(conn: &mut sqlx::PgConnection, env_id: uuid::Uuid) {
     let _ = sqlx::query("SELECT sentin8_set_tenant_context($1)")
         .bind(env_id)
         .execute(conn)

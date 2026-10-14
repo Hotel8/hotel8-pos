@@ -74,8 +74,14 @@ fn void_refusals_map_to_handler_errors() {
 
 #[test]
 fn payment_outcome_paid_when_total_covered() {
-    assert_eq!(CheckState::payment_outcome(d(40_70), d(40_70)), CheckState::Paid);
-    assert_eq!(CheckState::payment_outcome(d(40_70), d(45_00)), CheckState::Paid);
+    assert_eq!(
+        CheckState::payment_outcome(d(40_70), d(40_70)),
+        CheckState::Paid
+    );
+    assert_eq!(
+        CheckState::payment_outcome(d(40_70), d(45_00)),
+        CheckState::Paid
+    );
 }
 
 #[test]
@@ -88,8 +94,14 @@ fn payment_outcome_partial_when_short() {
 
 #[test]
 fn payment_outcome_cent_boundary() {
-    assert_eq!(CheckState::payment_outcome(d(100_00), d(99_99)), CheckState::PartiallyPaid);
-    assert_eq!(CheckState::payment_outcome(d(100_00), d(100_00)), CheckState::Paid);
+    assert_eq!(
+        CheckState::payment_outcome(d(100_00), d(99_99)),
+        CheckState::PartiallyPaid
+    );
+    assert_eq!(
+        CheckState::payment_outcome(d(100_00), d(100_00)),
+        CheckState::Paid
+    );
 }
 
 // ── 3. Order (kitchen) lifecycle ───────────────────────────────────────────
@@ -111,7 +123,10 @@ fn order_void_all_on_check_void() {
     // already consumed and the SQL cancels them too — the machine documents
     // which pre-serve states permit cancellation.
     for s in [OrderState::Sent, OrderState::Preparing, OrderState::Ready] {
-        assert!(s.can_transition_to(OrderState::Cancelled), "cancel from {s:?}");
+        assert!(
+            s.can_transition_to(OrderState::Cancelled),
+            "cancel from {s:?}"
+        );
     }
 }
 

@@ -29,7 +29,13 @@ pub async fn guest_menu(
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:guest:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:guest:read"),
+    )
+    .await?;
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, super::resolve_org_env(&a)).await;
 
@@ -70,7 +76,9 @@ pub async fn guest_menu(
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "outlet_id": outlet_id, "items": menu })))
+    Ok(Json(
+        serde_json::json!({ "outlet_id": outlet_id, "items": menu }),
+    ))
 }
 
 /// `POST /v1/guest/{property_id}/orders` — room-service order. Creates an
@@ -83,7 +91,13 @@ pub async fn guest_create_order(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:guest:write")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:guest:write"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -93,7 +107,10 @@ pub async fn guest_create_order(
         .and_then(|v| v.as_array())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "items array required".to_string()))?;
     if items.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "at least one item required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "at least one item required".to_string(),
+        ));
     }
 
     let outlet_id: uuid::Uuid = req
@@ -105,7 +122,12 @@ pub async fn guest_create_order(
         .get("reservation_id")
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "reservation_id required".to_string()))?;
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "reservation_id required".to_string(),
+            )
+        })?;
     // The check anchors to the in-house stay in this property (guest-ordering
     // invariant): verify the reservation is CHECKED_IN here before binding —
     // never accept a caller-supplied room that is not in-house.
@@ -122,7 +144,11 @@ pub async fn guest_create_order(
     .ok_or_else(|| super::err_not_found("Reservation is not an in-house stay at this property"))?;
     let room_number = stay
         .get::<Option<String>, _>("assigned_room_number")
-        .or_else(|| req.get("room_number").and_then(|v| v.as_str()).map(str::to_owned))
+        .or_else(|| {
+            req.get("room_number")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned)
+        })
         .unwrap_or_default();
     let guest_name: String = stay.get("guest_name");
     let order_no = format!("RS-{}", chrono::Utc::now().format("%Y%m%d%H%M%S%3f"));
@@ -149,7 +175,12 @@ pub async fn guest_create_order(
             .get("menu_item_id")
             .and_then(|v| v.as_str())
             .and_then(|s| uuid::Uuid::parse_str(s).ok())
-            .ok_or_else(|| (StatusCode::BAD_REQUEST, "each item needs menu_item_id".to_string()))?;
+            .ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "each item needs menu_item_id".to_string(),
+                )
+            })?;
         let quantity = item.get("quantity").and_then(|v| v.as_u64()).unwrap_or(1) as i32;
         if quantity < 1 {
             return Err((StatusCode::BAD_REQUEST, "quantity must be >= 1".to_string()));
@@ -223,7 +254,13 @@ pub async fn guest_get_order(
     Path((property_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-    crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:guest:read")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:guest:read"),
+    )
+    .await?;
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, super::resolve_org_env(&a)).await;
     let check = sqlx::query(

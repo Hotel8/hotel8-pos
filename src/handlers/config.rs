@@ -9,13 +9,13 @@
 //!
 //! Implements , , , , , , ,
 //! , .
+use crate::auth;
+use crate::event_emit::{emit_on_pool, emit_tx};
+use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
-use crate::handlers::AppState;
-use crate::auth;
-use crate::event_emit::{emit_tx, emit_on_pool};
 
 fn err_bad_request(msg: &str) -> (StatusCode, String) {
     (StatusCode::BAD_REQUEST, msg.to_string())
@@ -32,7 +32,13 @@ pub async fn create_service_area(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let area_code = req.get("area_code").and_then(|v| v.as_str()).unwrap_or("");
     let area_name = req.get("area_name").and_then(|v| v.as_str()).unwrap_or("");
@@ -53,8 +59,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
-    emit_tx(&mut *conn, env_id, "hotel8:pos:service_area:created", serde_json::json!({ "outlet_id": outlet_id, "area_id": id, "area_code": area_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:service_area:created",
+        serde_json::json!({ "outlet_id": outlet_id, "area_id": id, "area_code": area_code }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": id,
@@ -76,7 +89,8 @@ pub async fn list_service_areas(
         &a,
         &headers,
         sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
-    ).await?;
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -111,7 +125,13 @@ pub async fn update_service_area(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let area_name = req.get("area_name").and_then(|v| v.as_str());
     let is_active = req.get("is_active").and_then(|v| v.as_bool());
@@ -133,8 +153,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?
     .ok_or_else(|| super::err_not_found("service area not found"))?;
-    emit_tx(&mut *conn, env_id, "hotel8:pos:service_area:updated", serde_json::json!({ "outlet_id": outlet_id, "area_id": area_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:service_area:updated",
+        serde_json::json!({ "outlet_id": outlet_id, "area_id": area_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": row.get::<uuid::Uuid, _>("id"),
@@ -151,7 +178,13 @@ pub async fn delete_service_area(
     Path((outlet_id, area_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -167,19 +200,24 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
             "cannot delete service area with linked tables",
         ));
     }
-    let res = sqlx::query(
-        "DELETE FROM pos.service_areas WHERE id = $1 AND revenue_center_id = $2",
-    )
-    .bind(area_id)
-    .bind(outlet_id)
-    .execute(&mut *conn)
-    .await
-    .map_err(super::err_db)?;
+    let res = sqlx::query("DELETE FROM pos.service_areas WHERE id = $1 AND revenue_center_id = $2")
+        .bind(area_id)
+        .bind(outlet_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     if res.rows_affected() == 0 {
         return Err(super::err_not_found("service area not found"));
     }
-    emit_tx(&mut *conn, env_id, "hotel8:pos:service_area:deleted", serde_json::json!({ "outlet_id": outlet_id, "area_id": area_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:service_area:deleted",
+        serde_json::json!({ "outlet_id": outlet_id, "area_id": area_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -195,7 +233,13 @@ pub async fn create_menu_category(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let category_code = req
         .get("category_code")
@@ -211,7 +255,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .map(|n| n as i32)
         .unwrap_or(0);
     if category_code.is_empty() || category_name.is_empty() {
-        return Err(err_bad_request("category_code and category_name are required"));
+        return Err(err_bad_request(
+            "category_code and category_name are required",
+        ));
     }
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -253,7 +299,8 @@ pub async fn list_menu_categories(
         &a,
         &headers,
         sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
-    ).await?;
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -291,7 +338,13 @@ pub async fn update_menu_category(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let category_name = req.get("category_name").and_then(|v| v.as_str());
     let sort_order: Option<i32> = req
@@ -319,8 +372,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?
     .ok_or_else(|| super::err_not_found("menu category not found"))?;
-    emit_tx(&mut *conn, env_id, "hotel8:pos:menu:category:updated", serde_json::json!({ "outlet_id": outlet_id, "category_id": category_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:menu:category:updated",
+        serde_json::json!({ "outlet_id": outlet_id, "category_id": category_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": row.get::<uuid::Uuid, _>("id"),
@@ -338,36 +398,47 @@ pub async fn delete_menu_category(
     Path((outlet_id, category_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     // Block deletion if menu items are linked to this category.
-    let linked: i64 =
-        sqlx::query("SELECT COUNT(*) FROM pos.menu_items WHERE category_id = $1")
-            .bind(category_id)
-            .fetch_one(&mut *conn)
-            .await
-            .map_err(super::err_db)?
-            .get::<i64, _>(0);
+    let linked: i64 = sqlx::query("SELECT COUNT(*) FROM pos.menu_items WHERE category_id = $1")
+        .bind(category_id)
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(super::err_db)?
+        .get::<i64, _>(0);
     if linked > 0 {
         return Err(err_bad_request(
             "cannot delete menu category with linked menu items",
         ));
     }
-    let res = sqlx::query(
-        "DELETE FROM pos.menu_categories WHERE id = $1 AND revenue_center_id = $2",
-    )
-    .bind(category_id)
-    .bind(outlet_id)
-    .execute(&mut *conn)
-    .await
-    .map_err(super::err_db)?;
+    let res =
+        sqlx::query("DELETE FROM pos.menu_categories WHERE id = $1 AND revenue_center_id = $2")
+            .bind(category_id)
+            .bind(outlet_id)
+            .execute(&mut *conn)
+            .await
+            .map_err(super::err_db)?;
     if res.rows_affected() == 0 {
         return Err(super::err_not_found("menu category not found"));
     }
-    emit_tx(&mut *conn, env_id, "hotel8:pos:menu:category:deleted", serde_json::json!({ "outlet_id": outlet_id, "category_id": category_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:menu:category:deleted",
+        serde_json::json!({ "outlet_id": outlet_id, "category_id": category_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -383,13 +454,19 @@ pub async fn create_modifier_group(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
-    let group_name = req
-        .get("group_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let is_required = req.get("is_required").and_then(|v| v.as_bool()).unwrap_or(false);
+    let group_name = req.get("group_name").and_then(|v| v.as_str()).unwrap_or("");
+    let is_required = req
+        .get("is_required")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let min_selections: i32 = req
         .get("min_selections")
         .and_then(|v| v.as_i64())
@@ -420,8 +497,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
-    emit_tx(&mut *conn, env_id, "hotel8:pos:modifier_group:created", serde_json::json!({ "outlet_id": outlet_id, "item_id": item_id, "group_id": id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:modifier_group:created",
+        serde_json::json!({ "outlet_id": outlet_id, "item_id": item_id, "group_id": id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": id,
@@ -445,7 +529,8 @@ pub async fn list_modifier_groups(
         &a,
         &headers,
         sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
-    ).await?;
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -482,23 +567,34 @@ pub async fn delete_modifier_group(
     Path((outlet_id, item_id, group_id)): Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let res = sqlx::query(
-        "DELETE FROM pos.modifier_groups WHERE id = $1 AND menu_item_id = $2",
-    )
-    .bind(group_id)
-    .bind(item_id)
-    .execute(&mut *conn)
-    .await
-    .map_err(super::err_db)?;
+    let res = sqlx::query("DELETE FROM pos.modifier_groups WHERE id = $1 AND menu_item_id = $2")
+        .bind(group_id)
+        .bind(item_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     if res.rows_affected() == 0 {
         return Err(super::err_not_found("modifier group not found"));
     }
-    emit_tx(&mut *conn, env_id, "hotel8:pos:modifier_group:deleted", serde_json::json!({ "outlet_id": outlet_id, "item_id": item_id, "group_id": group_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:modifier_group:deleted",
+        serde_json::json!({ "outlet_id": outlet_id, "item_id": item_id, "group_id": group_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -514,7 +610,13 @@ pub async fn create_modifier(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let modifier_name = req
         .get("modifier_name")
@@ -568,7 +670,8 @@ pub async fn list_modifiers(
         &a,
         &headers,
         sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
-    ).await?;
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -610,18 +713,22 @@ pub async fn delete_modifier(
     )>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let res = sqlx::query(
-        "DELETE FROM pos.modifiers WHERE id = $1 AND modifier_group_id = $2",
-    )
-    .bind(modifier_id)
-    .bind(group_id)
-    .execute(&mut *conn)
-    .await
-    .map_err(super::err_db)?;
+    let res = sqlx::query("DELETE FROM pos.modifiers WHERE id = $1 AND modifier_group_id = $2")
+        .bind(modifier_id)
+        .bind(group_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     if res.rows_affected() == 0 {
         return Err(super::err_not_found("modifier not found"));
     }
@@ -642,7 +749,13 @@ pub async fn update_item_availability(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let is_active = req
         .get("is_active")
@@ -663,14 +776,21 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?
     .ok_or_else(|| super::err_not_found("menu item not found"))?;
-    emit_tx(&mut *conn, env_id, "hotel8:pos:menu:item:availability_changed", serde_json::json!({
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:menu:item:availability_changed",
+        serde_json::json!({
             "outlet_id": outlet_id,
             "item_id": item_id,
             "item_code": row.get::<String, _>("item_code"),
             "is_active": is_active,
             "reason": reason,
         }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": row.get::<uuid::Uuid, _>("id"),
@@ -693,7 +813,13 @@ pub async fn bulk_update_prices(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let updates = req
         .get("updates")
@@ -734,8 +860,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
             "price": row.get::<String, _>("price"),
         }));
     }
-    emit_tx(&mut *conn, env_id, "hotel8:pos:menu:items:prices_updated", serde_json::json!({ "outlet_id": outlet_id, "count": updated.len() }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:menu:items:prices_updated",
+        serde_json::json!({ "outlet_id": outlet_id, "count": updated.len() }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "updated": updated })))
 }
@@ -751,7 +884,13 @@ pub async fn create_tax_group(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let tax_code = req.get("tax_code").and_then(|v| v.as_str()).unwrap_or("");
     let tax_name = req.get("tax_name").and_then(|v| v.as_str()).unwrap_or("");
@@ -779,8 +918,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?;
     let id: uuid::Uuid = row.get("id");
-    emit_tx(&mut *conn, env_id, "hotel8:pos:tax_group:created", serde_json::json!({ "outlet_id": outlet_id, "tax_id": id, "tax_code": tax_code }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:tax_group:created",
+        serde_json::json!({ "outlet_id": outlet_id, "tax_id": id, "tax_code": tax_code }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": id,
@@ -803,7 +949,8 @@ pub async fn list_tax_groups(
         &a,
         &headers,
         sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
-    ).await?;
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -840,7 +987,13 @@ pub async fn update_tax_group(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let tax_name = req.get("tax_name").and_then(|v| v.as_str());
     let tax_rate: Option<String> = req
@@ -868,8 +1021,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?
     .ok_or_else(|| super::err_not_found("tax group not found"))?;
-    emit_tx(&mut *conn, env_id, "hotel8:pos:tax_group:updated", serde_json::json!({ "outlet_id": outlet_id, "tax_id": tax_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:tax_group:updated",
+        serde_json::json!({ "outlet_id": outlet_id, "tax_id": tax_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": row.get::<uuid::Uuid, _>("id"),
@@ -887,23 +1047,34 @@ pub async fn delete_tax_group(
     Path((outlet_id, tax_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let res = sqlx::query(
-        "DELETE FROM pos.tax_groups WHERE id = $1 AND revenue_center_id = $2",
-    )
-    .bind(tax_id)
-    .bind(outlet_id)
-    .execute(&mut *conn)
-    .await
-    .map_err(super::err_db)?;
+    let res = sqlx::query("DELETE FROM pos.tax_groups WHERE id = $1 AND revenue_center_id = $2")
+        .bind(tax_id)
+        .bind(outlet_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(super::err_db)?;
     if res.rows_affected() == 0 {
         return Err(super::err_not_found("tax group not found"));
     }
-    emit_tx(&mut *conn, env_id, "hotel8:pos:tax_group:deleted", serde_json::json!({ "outlet_id": outlet_id, "tax_id": tax_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:tax_group:deleted",
+        serde_json::json!({ "outlet_id": outlet_id, "tax_id": tax_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -919,7 +1090,13 @@ pub async fn create_printer_group(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let printer_code = req
         .get("printer_code")
@@ -931,7 +1108,9 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
         .unwrap_or("");
     let station_code = req.get("station_code").and_then(|v| v.as_str());
     if printer_code.is_empty() || printer_name.is_empty() {
-        return Err(err_bad_request("printer_code and printer_name are required"));
+        return Err(err_bad_request(
+            "printer_code and printer_name are required",
+        ));
     }
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -973,7 +1152,8 @@ pub async fn list_printer_groups(
         &a,
         &headers,
         sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
-    ).await?;
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
@@ -1010,7 +1190,13 @@ pub async fn update_printer_group(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let printer_name = req.get("printer_name").and_then(|v| v.as_str());
     let station_code = req.get("station_code").and_then(|v| v.as_str());
@@ -1035,8 +1221,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
     .await
     .map_err(super::err_db)?
     .ok_or_else(|| super::err_not_found("printer group not found"))?;
-    emit_tx(&mut *conn, env_id, "hotel8:pos:printer_group:updated", serde_json::json!({ "outlet_id": outlet_id, "printer_id": printer_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:printer_group:updated",
+        serde_json::json!({ "outlet_id": outlet_id, "printer_id": printer_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "id": row.get::<uuid::Uuid, _>("id"),
@@ -1054,23 +1247,35 @@ pub async fn delete_printer_group(
     Path((outlet_id, printer_id)): Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let res = sqlx::query(
-        "DELETE FROM pos.printer_groups WHERE id = $1 AND revenue_center_id = $2",
-    )
-    .bind(printer_id)
-    .bind(outlet_id)
-    .execute(&mut *conn)
-    .await
-    .map_err(super::err_db)?;
+    let res =
+        sqlx::query("DELETE FROM pos.printer_groups WHERE id = $1 AND revenue_center_id = $2")
+            .bind(printer_id)
+            .bind(outlet_id)
+            .execute(&mut *conn)
+            .await
+            .map_err(super::err_db)?;
     if res.rows_affected() == 0 {
         return Err(super::err_not_found("printer group not found"));
     }
-    emit_tx(&mut *conn, env_id, "hotel8:pos:printer_group:deleted", serde_json::json!({ "outlet_id": outlet_id, "printer_id": printer_id }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_tx(
+        &mut *conn,
+        env_id,
+        "hotel8:pos:printer_group:deleted",
+        serde_json::json!({ "outlet_id": outlet_id, "printer_id": printer_id }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -1090,7 +1295,8 @@ pub async fn get_payment_methods(
         &_a,
         &headers,
         sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
-    ).await?;
+    )
+    .await?;
     // No dedicated payment-methods table: return the static supported list,
     // all enabled by default. Future enhancement: persist overrides on the
     // revenue center as a JSONB column.
@@ -1116,7 +1322,13 @@ pub async fn update_payment_methods(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
-crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget::new("hotel8:pos:admin")).await?;
+    crate::policy::require(
+        &state.policy,
+        &a,
+        &headers,
+        sentin8::shield::EvalTarget::new("hotel8:pos:admin"),
+    )
+    .await?;
     let env_id = super::resolve_org_env(&a);
     let methods = req
         .get("methods")
@@ -1133,8 +1345,15 @@ crate::policy::require(&state.policy, &a, &headers, sentin8::shield::EvalTarget:
             .and_then(|v| v.as_bool())
             .ok_or_else(|| err_bad_request("each method requires is_enabled (bool)"))?;
     }
-    emit_on_pool(&state.pool, env_id, "hotel8:pos:payment_methods:updated", serde_json::json!({ "outlet_id": outlet_id, "methods": methods }),
-        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
+    emit_on_pool(
+        &state.pool,
+        env_id,
+        "hotel8:pos:payment_methods:updated",
+        serde_json::json!({ "outlet_id": outlet_id, "methods": methods }),
+        &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope),
+    )
+    .await
+    .map_err(super::err_emit)?;
     Ok(Json(serde_json::json!({
         "outlet_id": outlet_id,
         "methods": methods,

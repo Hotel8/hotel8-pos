@@ -264,7 +264,10 @@ mod tests {
     fn check_payment_progression() {
         use CheckState::*;
         assert!(Open.can_transition_to(PartiallyPaid));
-        assert!(PartiallyPaid.can_transition_to(PartiallyPaid), "second partial payment keeps state");
+        assert!(
+            PartiallyPaid.can_transition_to(PartiallyPaid),
+            "second partial payment keeps state"
+        );
         assert!(PartiallyPaid.can_transition_to(Paid));
         assert!(Open.can_transition_to(Paid), "full payment in one go");
         assert!(Paid.can_transition_to(Refunded));
@@ -276,12 +279,19 @@ mod tests {
         use CheckState::*;
         // total <= paid_sum → PAID (the SQL comparison).
         assert_eq!(CheckState::payment_outcome(d(5000), d(5000)), Paid);
-        assert_eq!(CheckState::payment_outcome(d(5000), d(6000)), Paid, "overpay still closes");
+        assert_eq!(
+            CheckState::payment_outcome(d(5000), d(6000)),
+            Paid,
+            "overpay still closes"
+        );
         // total > paid → partial.
         assert_eq!(CheckState::payment_outcome(d(5000), d(3000)), PartiallyPaid);
         assert_eq!(CheckState::payment_outcome(d(5000), d(0)), PartiallyPaid);
         // Cent-exact boundary.
-        assert_eq!(CheckState::payment_outcome(d(10001), d(10000)), PartiallyPaid);
+        assert_eq!(
+            CheckState::payment_outcome(d(10001), d(10000)),
+            PartiallyPaid
+        );
         assert_eq!(CheckState::payment_outcome(d(10000), d(10001)), Paid);
     }
 
@@ -301,9 +311,15 @@ mod tests {
 
     #[test]
     fn void_policy_under_100_needs_no_approval() {
-        assert_eq!(CheckState::can_void(CheckState::Open, d(9_999), false), Ok(()));
+        assert_eq!(
+            CheckState::can_void(CheckState::Open, d(9_999), false),
+            Ok(())
+        );
         // Exactly $100.00 is NOT over the threshold ("voids over $100.00").
-        assert_eq!(CheckState::can_void(CheckState::Open, d(10_000), false), Ok(()));
+        assert_eq!(
+            CheckState::can_void(CheckState::Open, d(10_000), false),
+            Ok(())
+        );
     }
 
     #[test]
@@ -312,7 +328,10 @@ mod tests {
             CheckState::can_void(CheckState::Open, d(10_001), false),
             Err(VoidError::ManagerApprovalRequired)
         );
-        assert_eq!(CheckState::can_void(CheckState::Open, d(10_001), true), Ok(()));
+        assert_eq!(
+            CheckState::can_void(CheckState::Open, d(10_001), true),
+            Ok(())
+        );
         // A single cent over is already "over".
         assert_eq!(
             CheckState::can_void(CheckState::Open, d(100_00) + Decimal::new(1, 2), false),
@@ -322,8 +341,14 @@ mod tests {
 
     #[test]
     fn void_policy_held_and_partial_checks_can_void() {
-        assert_eq!(CheckState::can_void(CheckState::Held, d(250_00), true), Ok(()));
-        assert_eq!(CheckState::can_void(CheckState::PartiallyPaid, d(50_00), false), Ok(()));
+        assert_eq!(
+            CheckState::can_void(CheckState::Held, d(250_00), true),
+            Ok(())
+        );
+        assert_eq!(
+            CheckState::can_void(CheckState::PartiallyPaid, d(50_00), false),
+            Ok(())
+        );
     }
 
     // ── Order machine (test-strategy §3.6) ──

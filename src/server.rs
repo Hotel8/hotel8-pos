@@ -4,13 +4,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Axum server setup for H8POS.
+use axum::routing::{delete, get, post, put};
 use std::sync::Arc;
-use axum::routing::{get, post, put, delete};
 
 use crate::handlers::{self, AppState};
 
-pub async fn build_state(core: sentin8::shell::ServiceCore)
-    -> anyhow::Result<crate::handlers::AppState> {
+pub async fn build_state(
+    core: sentin8::shell::ServiceCore,
+) -> anyhow::Result<crate::handlers::AppState> {
     let config = crate::config::POSConfig::from_env();
 
     // Cert-presenting Bus client (CERTFREE-4V): the `pos` workload
@@ -88,9 +89,10 @@ pub async fn build_state(core: sentin8::shell::ServiceCore)
 /// owns the boot sequence, state binding, OpenAPI merge and the standard
 /// middleware stack; this adds ONLY routes (including the service's own
 /// `/v1/health` — custom payload).
-pub fn routes(router: axum::Router<crate::handlers::AppState>)
-    -> axum::Router<crate::handlers::AppState> {
-   router
+pub fn routes(
+    router: axum::Router<crate::handlers::AppState>,
+) -> axum::Router<crate::handlers::AppState> {
+    router
         .route("/v1/health", get(handlers::health))
         // ── Admin UI (RFW) ─────────────────────────────────────────────────
         .route("/v1/admin/ui/{*page}", get(crate::admin_ui::get_admin_ui))
