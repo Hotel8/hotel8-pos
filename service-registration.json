@@ -2,7 +2,11 @@
   "vertical": "hotel8",
   "services": [
     {
-      "service_type": "hotel8:pos"
+      "service_type": "hotel8:pos",
+      "telemetry_property": {
+        "slug": "pos",
+        "name": "Hotel8:POS Telemetry"
+      }
     }
   ]
 }
