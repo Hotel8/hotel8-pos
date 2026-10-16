@@ -1,0 +1,186 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hotel8-pos",
+    "description": "Sentin8 H8POS — Point of Sale service.",
+    "license": {
+      "name": "MIT OR Apache-2.0",
+      "identifier": "MIT OR Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/admin/orders": {
+      "get": {
+        "tags": [
+          "pos"
+        ],
+        "summary": "`GET /v1/outlets/{outlet_id}/checks`",
+        "operationId": "search_checks",
+        "responses": {
+          "200": {
+            "description": "List of orders",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pos:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pos:admin": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "pos"
+        ],
+        "summary": "`POST /v1/outlets/{outlet_id}/checks`",
+        "operationId": "create_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Check created",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pos:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pos:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/orders/{id}": {
+      "get": {
+        "tags": [
+          "pos"
+        ],
+        "summary": "`GET /v1/outlets/{outlet_id}/checks/{check_id}`",
+        "operationId": "get_check",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Check ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Check details",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pos:admin scope"
+          },
+          "404": {
+            "description": "Check not found"
+          }
+        },
+        "security": [
+          {
+            "pos:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/payments": {
+      "post": {
+        "tags": [
+          "pos"
+        ],
+        "summary": "`POST /v1/outlets/{outlet_id}/checks/{check_id}/payments`",
+        "operationId": "post_payment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Payment posted",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pos:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pos:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/reports": {
+      "get": {
+        "tags": [
+          "pos"
+        ],
+        "summary": "`GET /v1/outlets/{outlet_id}/reports/sales`",
+        "operationId": "daily_sales_summary",
+        "responses": {
+          "200": {
+            "description": "Daily sales summary report",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing pos:admin scope"
+          }
+        },
+        "security": [
+          {
+            "pos:admin": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {},
+  "security": [],
+  "tags": [
+    {
+      "name": "pos",
+      "description": "Hotel8:POS admin API — orders, payments, reports"
+    }
+  ]
+}
