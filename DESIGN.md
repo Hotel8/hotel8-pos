@@ -39,7 +39,7 @@ graph TD
 ```mermaid
 graph TD
     subgraph container["hotel8:pos"]
-        API[/v1 outlets, tables, menu, orders, checks, payments, reports]
+        API[/"v1 outlets, tables, menu, orders, checks, payments, reports"/]
         ADMIN[/v1/admin/ui/* RFW/]
         SM[CheckState + OrderState machines]
         OUT[(pos.outbox)]
@@ -83,7 +83,7 @@ sequenceDiagram
         P->>PAY: M2M charge (bill8:payments:charges:write)
         PAY-->>P: charge succeeded
     end
-    P->>DB: BEGIN; set context; INSERT pos.payments; UPDATE pos.checks; INSERT pos.outbox; INSERT pos.audit_journal; COMMIT
+    P->>DB: BEGIN, set context, INSERT pos.payments, UPDATE pos.checks, INSERT pos.outbox, INSERT pos.audit_journal, COMMIT
     P-->>T: 200 receipt payload
     Note over DB: shell relay produces pos family post-commit
 ```
