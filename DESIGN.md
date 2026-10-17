@@ -1,4 +1,4 @@
-# DESIGN.md: Hotel8:POS — Detailed Design Document
+# Hotel8:POS — Detailed Design Document
 
 ## 1. Scope & Context
 
