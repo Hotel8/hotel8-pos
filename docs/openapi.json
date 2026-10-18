@@ -1,186 +1,2356 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "hotel8-pos",
-    "description": "Sentin8 H8POS — Point of Sale service.",
-    "license": {
-      "name": "MIT OR Apache-2.0",
-      "identifier": "MIT OR Apache-2.0"
-    },
-    "version": "0.1.0"
+ "openapi": "3.1.0",
+ "info": {
+  "title": "hotel8-pos",
+  "description": "Sentin8 H8POS \u2014 Point of Sale service.",
+  "license": {
+   "name": "MIT OR Apache-2.0",
+   "identifier": "MIT OR Apache-2.0"
   },
-  "paths": {
-    "/v1/admin/orders": {
-      "get": {
-        "tags": [
-          "pos"
-        ],
-        "summary": "`GET /v1/outlets/{outlet_id}/checks`",
-        "operationId": "search_checks",
-        "responses": {
-          "200": {
-            "description": "List of orders",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing pos:admin scope"
-          }
-        },
-        "security": [
-          {
-            "pos:admin": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "pos"
-        ],
-        "summary": "`POST /v1/outlets/{outlet_id}/checks`",
-        "operationId": "create_check",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Check created",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing pos:admin scope"
-          }
-        },
-        "security": [
-          {
-            "pos:admin": []
-          }
-        ]
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/v1/admin/attributes": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_list_attributes",
+    "responses": {
+     "200": {
+      "description": "Principal attributes of this service",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {}
+        }
+       }
       }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
     },
-    "/v1/admin/orders/{id}": {
-      "get": {
-        "tags": [
-          "pos"
-        ],
-        "summary": "`GET /v1/outlets/{outlet_id}/checks/{check_id}`",
-        "operationId": "get_check",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Check ID",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Check details",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing pos:admin scope"
-          },
-          "404": {
-            "description": "Check not found"
-          }
-        },
-        "security": [
-          {
-            "pos:admin": []
-          }
-        ]
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "put": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_put_attribute",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
       }
+     },
+     "required": true
     },
-    "/v1/admin/payments": {
-      "post": {
-        "tags": [
-          "pos"
-        ],
-        "summary": "`POST /v1/outlets/{outlet_id}/checks/{check_id}/payments`",
-        "operationId": "post_payment",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Payment posted",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing pos:admin scope"
-          }
-        },
-        "security": [
-          {
-            "pos:admin": []
-          }
-        ]
+    "responses": {
+     "200": {
+      "description": "Attribute stored",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
       }
+     },
+     "400": {
+      "description": "Invalid attribute definition"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
     },
-    "/v1/admin/reports": {
-      "get": {
-        "tags": [
-          "pos"
-        ],
-        "summary": "`GET /v1/outlets/{outlet_id}/reports/sales`",
-        "operationId": "daily_sales_summary",
-        "responses": {
-          "200": {
-            "description": "Daily sales summary report",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing pos:admin scope"
-          }
-        },
-        "security": [
-          {
-            "pos:admin": []
-          }
-        ]
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "delete": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_delete_attribute",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "query",
+      "description": "Attribute id to delete",
+      "required": true,
+      "schema": {
+       "type": "string"
       }
-    }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Attribute deleted"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
   },
-  "components": {},
-  "security": [],
-  "tags": [
-    {
-      "name": "pos",
-      "description": "Hotel8:POS admin API — orders, payments, reports"
-    }
-  ]
+  "/v1/admin/policy-sets": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_list_sets",
+    "responses": {
+     "200": {
+      "description": "Policy sets of this service",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {}
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/disable": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_mode_disable",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Sets disabled"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/enforce": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_mode_enforce",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Sets switched to enforce mode"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/shadow": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_mode_shadow",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Sets switched to shadow mode"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/{name}": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_get_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "The policy set",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     },
+     "404": {
+      "description": "Unknown policy set name"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "put": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_put_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Policy set stored",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid policy set definition"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "delete": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_delete_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Policy set deleted"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/{name}/test": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_test_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Dry-run decision trace",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/relations": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_list_relations",
+    "responses": {
+     "200": {
+      "description": "ReBAC relations of this service",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {}
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "put": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_put_relation",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Relation stored",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid relation definition"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "delete": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_delete_relation",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "query",
+      "description": "Relation id to delete",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Relation deleted"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/relations/check": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_check_relation",
+    "parameters": [
+     {
+      "name": "subject",
+      "in": "query",
+      "description": "Subject key",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "relation",
+      "in": "query",
+      "description": "Relation name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "object",
+      "in": "query",
+      "description": "Object key",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "The check verdict",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/ui/{page}": {
+   "get": {
+    "tags": [
+     "pos-admin"
+    ],
+    "operationId": "get_admin_ui",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/guest/{property_id}/menu": {
+   "get": {
+    "tags": [
+     "pos-guest"
+    ],
+    "summary": "`GET /v1/guest/{property_id}/menu?outlet_id=` \u2014 menu catalog for the\nroom-service outlet (defaults to the property's first `ROOM_SERVICE`\noutlet when `outlet_id` is omitted).",
+    "operationId": "guest_menu",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/guest/{property_id}/orders": {
+   "post": {
+    "tags": [
+     "pos-guest"
+    ],
+    "summary": "`POST /v1/guest/{property_id}/orders` \u2014 room-service order. Creates an\n`OPEN` check bound to the in-house reservation + room, inserts the ordered\nlines (same machine the terminals use), returns the check + totals.",
+    "operationId": "guest_create_order",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/guest/{property_id}/orders/{check_id}": {
+   "get": {
+    "tags": [
+     "pos-guest"
+    ],
+    "summary": "`GET /v1/guest/{property_id}/orders/{check_id}` \u2014 order status read-back\nfor the ordering screen (prep states drive the UI stepper).",
+    "operationId": "guest_get_order",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/guests/lookup-by-room": {
+   "get": {
+    "tags": [
+     "pos-guest"
+    ],
+    "operationId": "lookup_guest_by_room",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/health": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "health",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/manager-approve": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "manager_approve",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/offline-status": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "get_offline_status",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/offline-sync": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "sync_offline_data",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_outlets",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_outlet",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "summary": "`GET /v1/outlets/{outlet_id}/checks`",
+    "operationId": "search_checks",
+    "responses": {
+     "200": {
+      "description": "List of orders",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing pos:admin scope"
+     }
+    },
+    "security": [
+     {
+      "pos:admin": []
+     }
+    ]
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "summary": "`POST /v1/outlets/{outlet_id}/checks`",
+    "operationId": "create_check",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Check created",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing pos:admin scope"
+     }
+    },
+    "security": [
+     {
+      "pos:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "summary": "`GET /v1/outlets/{outlet_id}/checks/{check_id}`",
+    "operationId": "get_check",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "description": "Check ID",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Check details",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing pos:admin scope"
+     },
+     "404": {
+      "description": "Check not found"
+     }
+    },
+    "security": [
+     {
+      "pos:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/discount": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "apply_discount",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/hold": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "hold_check",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/orders": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "add_order_item",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/route-kitchen": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "route_order_to_kitchen",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/seat": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "assign_seat",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/payments": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "summary": "`POST /v1/outlets/{outlet_id}/checks/{check_id}/payments`",
+    "operationId": "post_payment",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Payment posted",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing pos:admin scope"
+     }
+    },
+    "security": [
+     {
+      "pos:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/payments-process": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "bill8_payments_process_payment",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/recall": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "recall_check",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/redeem-package": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "redeem_package",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/split": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "split_check",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/split-payment": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "split_payment",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/transfer": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "transfer_check",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/checks/{check_id}/void": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "void_check",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu-items": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_menu_items",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_menu_item",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu-items/prices": {
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "bulk_update_prices",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu-items/{item_id}/availability": {
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_item_availability",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_modifier_groups",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_modifier_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}": {
+   "delete": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "delete_modifier_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_modifiers",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_modifier",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers/{modifier_id}": {
+   "delete": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "delete_modifier",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu/categories": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_menu_categories",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_menu_category",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/menu/categories/{category_id}": {
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_menu_category",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "delete": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "delete_menu_category",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/orders/void": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "void_order_item",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/payment-methods": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "get_payment_methods",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_payment_methods",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/printer-groups": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_printer_groups",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_printer_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/printer-groups/{printer_id}": {
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_printer_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "delete": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "delete_printer_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/reports/end-of-day": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "end_of_day_report",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/reports/export/{report_type}": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "export_report",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/reports/items": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "item_sales_report",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/reports/labor": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "labor_report",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/reports/sales": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "summary": "`GET /v1/outlets/{outlet_id}/reports/sales`",
+    "operationId": "daily_sales_summary",
+    "responses": {
+     "200": {
+      "description": "Daily sales summary report",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing pos:admin scope"
+     }
+    },
+    "security": [
+     {
+      "pos:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/outlets/{outlet_id}/service-areas": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_service_areas",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_service_area",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/service-areas/{area_id}": {
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_service_area",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "delete": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "delete_service_area",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tables": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_tables",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_table",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tables/combine": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "combine_tables",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tables/floor-plan": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "get_floor_plan",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tables/separate": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "separate_tables",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tables/{table_id}": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "get_table",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_table",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "delete": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "delete_table",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tables/{table_id}/status": {
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_table_status",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tax-groups": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "list_tax_groups",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "create_tax_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/outlets/{outlet_id}/tax-groups/{tax_id}": {
+   "put": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "update_tax_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "delete": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "delete_tax_group",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/payments/room-charge": {
+   "post": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "room_charge",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/permissions": {
+   "get": {
+    "tags": [
+     "pos"
+    ],
+    "operationId": "get_user_permissions",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  }
+ },
+ "components": {},
+ "security": [],
+ "tags": [
+  {
+   "name": "policy",
+   "description": "Shield policy administration (shared surface)"
+  },
+  {
+   "name": "pos",
+   "description": "Hotel8:POS admin API \u2014 orders, payments, reports"
+  }
+ ]
 }

@@ -11,6 +11,17 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/menu-items",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_menu_item(
     State(state): State<AppState>,
@@ -77,6 +88,17 @@ pub async fn create_menu_item(
         "tax_rate": row.get::<String, _>("tax_rate"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/menu-items",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_menu_items(
     State(state): State<AppState>,

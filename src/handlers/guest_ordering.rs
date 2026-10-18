@@ -18,6 +18,17 @@ use sqlx::Row;
 use crate::auth;
 use crate::event_emit::{emit_tx, Publisher};
 use crate::handlers::AppState;
+#[utoipa::path(
+    get,
+    path = "/v1/guest/{property_id}/menu",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos-guest",
+)]
 
 /// `GET /v1/guest/{property_id}/menu?outlet_id=` — menu catalog for the
 /// room-service outlet (defaults to the property's first `ROOM_SERVICE`
@@ -80,6 +91,17 @@ pub async fn guest_menu(
         serde_json::json!({ "outlet_id": outlet_id, "items": menu }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/guest/{property_id}/orders",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos-guest",
+)]
 
 /// `POST /v1/guest/{property_id}/orders` — room-service order. Creates an
 /// `OPEN` check bound to the in-house reservation + room, inserts the ordered
@@ -245,6 +267,17 @@ pub async fn guest_create_order(
         "items": lines,
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/guest/{property_id}/orders/{check_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos-guest",
+)]
 
 /// `GET /v1/guest/{property_id}/orders/{check_id}` — order status read-back
 /// for the ordering screen (prep states drive the UI stepper).

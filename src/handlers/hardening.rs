@@ -13,6 +13,17 @@ use axum::Json;
 use sqlx::Row;
 
 // ── User permissions — Server, Bartender, Shift Manager, General Manager, Administrator ──
+#[utoipa::path(
+    get,
+    path = "/v1/permissions",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn get_user_permissions(
     State(_state): State<AppState>,
@@ -84,6 +95,17 @@ pub async fn get_user_permissions(
 }
 
 // ── Manager approval for voids, comps, and discounts above threshold ──
+#[utoipa::path(
+    post,
+    path = "/v1/manager-approve",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn manager_approve(
     State(state): State<AppState>,
@@ -147,6 +169,17 @@ pub async fn manager_approve(
 }
 
 // ── Offline support — queue orders and payments locally, sync when reconnected ──
+#[utoipa::path(
+    get,
+    path = "/v1/offline-status",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn get_offline_status(
     State(_state): State<AppState>,
@@ -168,6 +201,17 @@ pub async fn get_offline_status(
     })))
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/offline-sync",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 pub async fn sync_offline_data(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -217,6 +261,17 @@ pub async fn sync_offline_data(
 }
 
 // ── Kitchen display integration — order routing by printer group ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/route-kitchen",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn route_order_to_kitchen(
     State(state): State<AppState>,

@@ -24,6 +24,17 @@ fn err_bad_request(msg: &str) -> (StatusCode, String) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Service Area CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/service-areas",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_service_area(
     State(state): State<AppState>,
@@ -77,6 +88,17 @@ pub async fn create_service_area(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/service-areas",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_service_areas(
     State(state): State<AppState>,
@@ -117,6 +139,17 @@ pub async fn list_service_areas(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/service-areas/{area_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_service_area(
     State(state): State<AppState>,
@@ -171,6 +204,17 @@ pub async fn update_service_area(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/outlets/{outlet_id}/service-areas/{area_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn delete_service_area(
     State(state): State<AppState>,
@@ -225,6 +269,17 @@ pub async fn delete_service_area(
 // ═══════════════════════════════════════════════════════════════════════════
 // Menu Category CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/menu/categories",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_menu_category(
     State(state): State<AppState>,
@@ -287,6 +342,17 @@ pub async fn create_menu_category(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/menu/categories",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_menu_categories(
     State(state): State<AppState>,
@@ -330,6 +396,17 @@ pub async fn list_menu_categories(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/menu/categories/{category_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_menu_category(
     State(state): State<AppState>,
@@ -391,6 +468,17 @@ pub async fn update_menu_category(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/outlets/{outlet_id}/menu/categories/{category_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn delete_menu_category(
     State(state): State<AppState>,
@@ -446,6 +534,17 @@ pub async fn delete_menu_category(
 // ═══════════════════════════════════════════════════════════════════════════
 // Modifier Group CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_modifier_group(
     State(state): State<AppState>,
@@ -517,6 +616,17 @@ pub async fn create_modifier_group(
         "max_selections": row.get::<i32, _>("max_selections"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_modifier_groups(
     State(state): State<AppState>,
@@ -560,6 +670,17 @@ pub async fn list_modifier_groups(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn delete_modifier_group(
     State(state): State<AppState>,
@@ -602,6 +723,17 @@ pub async fn delete_modifier_group(
 // ═══════════════════════════════════════════════════════════════════════════
 // Modifier CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_modifier(
     State(state): State<AppState>,
@@ -658,6 +790,17 @@ pub async fn create_modifier(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_modifiers(
     State(state): State<AppState>,
@@ -701,6 +844,17 @@ pub async fn list_modifiers(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers/{modifier_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn delete_modifier(
     State(state): State<AppState>,
@@ -741,6 +895,17 @@ pub async fn delete_modifier(
 // ═══════════════════════════════════════════════════════════════════════════
 // Item Availability (86'ing)
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/availability",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_item_availability(
     State(state): State<AppState>,
@@ -805,6 +970,17 @@ pub async fn update_item_availability(
 // ═══════════════════════════════════════════════════════════════════════════
 // Bulk Price Update
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/menu-items/prices",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn bulk_update_prices(
     State(state): State<AppState>,
@@ -876,6 +1052,17 @@ pub async fn bulk_update_prices(
 // ═══════════════════════════════════════════════════════════════════════════
 // Tax Group CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/tax-groups",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_tax_group(
     State(state): State<AppState>,
@@ -937,6 +1124,17 @@ pub async fn create_tax_group(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/tax-groups",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_tax_groups(
     State(state): State<AppState>,
@@ -979,6 +1177,17 @@ pub async fn list_tax_groups(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/tax-groups/{tax_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_tax_group(
     State(state): State<AppState>,
@@ -1040,6 +1249,17 @@ pub async fn update_tax_group(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/outlets/{outlet_id}/tax-groups/{tax_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn delete_tax_group(
     State(state): State<AppState>,
@@ -1082,6 +1302,17 @@ pub async fn delete_tax_group(
 // ═══════════════════════════════════════════════════════════════════════════
 // Printer Group CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/printer-groups",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_printer_group(
     State(state): State<AppState>,
@@ -1140,6 +1371,17 @@ pub async fn create_printer_group(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/printer-groups",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_printer_groups(
     State(state): State<AppState>,
@@ -1182,6 +1424,17 @@ pub async fn list_printer_groups(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/printer-groups/{printer_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_printer_group(
     State(state): State<AppState>,
@@ -1240,6 +1493,17 @@ pub async fn update_printer_group(
         "is_active": row.get::<bool, _>("is_active"),
     })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/outlets/{outlet_id}/printer-groups/{printer_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn delete_printer_group(
     State(state): State<AppState>,
@@ -1283,6 +1547,17 @@ pub async fn delete_printer_group(
 // ═══════════════════════════════════════════════════════════════════════════
 // Payment Method configuration
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/payment-methods",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn get_payment_methods(
     State(state): State<AppState>,
@@ -1314,6 +1589,17 @@ pub async fn get_payment_methods(
         "methods": methods,
     })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/payment-methods",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_payment_methods(
     State(state): State<AppState>,

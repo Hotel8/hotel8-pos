@@ -17,7 +17,7 @@ use sqlx::Row;
 /// `GET /v1/outlets/{outlet_id}/reports/sales`
 #[utoipa::path(
     get,
-    path = "/v1/admin/reports",
+    path = "/v1/outlets/{outlet_id}/reports/sales",
     responses(
         (status = 200, description = "Daily sales summary report", body = serde_json::Value),
         (status = 403, description = "Missing pos:admin scope"),
@@ -74,6 +74,17 @@ pub async fn daily_sales_summary(
 }
 
 // ── Item Sales Report ──
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/reports/items",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn item_sales_report(
     State(state): State<AppState>,
@@ -139,6 +150,17 @@ pub async fn item_sales_report(
 }
 
 // ── Labor Report ──
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/reports/labor",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn labor_report(
     State(state): State<AppState>,
@@ -176,6 +198,17 @@ pub async fn labor_report(
 }
 
 // ── End of Day Report ──
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/reports/end-of-day",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn end_of_day_report(
     State(state): State<AppState>,
@@ -256,6 +289,17 @@ pub async fn end_of_day_report(
 }
 
 // ── Report export — PDF, Excel, CSV ──
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/reports/export/{report_type}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn export_report(
     State(state): State<AppState>,

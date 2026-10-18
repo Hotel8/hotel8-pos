@@ -77,6 +77,17 @@ fn err_emit(e: sentin8::bus::outbox::OutboxError) -> (axum::http::StatusCode, St
 pub fn err_not_found(msg: &str) -> (axum::http::StatusCode, String) {
     (axum::http::StatusCode::NOT_FOUND, msg.to_string())
 }
+#[utoipa::path(
+    get,
+    path = "/v1/health",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn health(
     axum::extract::State(state): axum::extract::State<AppState>,

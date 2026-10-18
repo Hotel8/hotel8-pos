@@ -33,6 +33,17 @@ fn is_valid_status(s: &str) -> bool {
 // ═══════════════════════════════════════════════════════════════════════════
 // Table CRUD
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/tables",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn create_table(
     State(state): State<AppState>,
@@ -128,6 +139,17 @@ pub async fn create_table(
         "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
     })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/tables",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn list_tables(
     State(state): State<AppState>,
@@ -204,6 +226,17 @@ pub async fn list_tables(
 
     Ok(Json(serde_json::json!({ "items": items })))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/tables/{table_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn get_table(
     State(state): State<AppState>,
@@ -253,6 +286,17 @@ pub async fn get_table(
         "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
     })))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/tables/{table_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_table(
     State(state): State<AppState>,
@@ -349,6 +393,17 @@ pub async fn update_table(
         "updated_at": row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at"),
     })))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/outlets/{outlet_id}/tables/{table_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn delete_table(
     State(state): State<AppState>,
@@ -427,6 +482,17 @@ pub async fn delete_table(
 // ═══════════════════════════════════════════════════════════════════════════
 // / Table status management + update
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    put,
+    path = "/v1/outlets/{outlet_id}/tables/{table_id}/status",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn update_table_status(
     State(state): State<AppState>,
@@ -601,6 +667,17 @@ async fn update_table_status_no_check_change(
 // ═══════════════════════════════════════════════════════════════════════════
 // Table Combine
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/tables/combine",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn combine_tables(
     State(state): State<AppState>,
@@ -742,6 +819,17 @@ pub async fn combine_tables(
 // ═══════════════════════════════════════════════════════════════════════════
 // Table Separate
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/tables/separate",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn separate_tables(
     State(state): State<AppState>,
@@ -820,6 +908,17 @@ pub async fn separate_tables(
 // ═══════════════════════════════════════════════════════════════════════════
 // Floor Plan
 // ═══════════════════════════════════════════════════════════════════════════
+#[utoipa::path(
+    get,
+    path = "/v1/outlets/{outlet_id}/tables/floor-plan",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn get_floor_plan(
     State(state): State<AppState>,

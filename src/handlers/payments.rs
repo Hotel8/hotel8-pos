@@ -19,7 +19,7 @@ use sqlx::Row;
 /// `POST /v1/outlets/{outlet_id}/checks/{check_id}/payments`
 #[utoipa::path(
     post,
-    path = "/v1/admin/payments",
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/payments",
     request_body = serde_json::Value,
     responses(
         (status = 200, description = "Payment posted", body = serde_json::Value),
@@ -92,6 +92,17 @@ pub async fn post_payment(
 }
 
 // ── Payments integration — card tokenization, authorization, capture ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/payments-process",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn bill8_payments_process_payment(
     State(state): State<AppState>,
@@ -157,6 +168,17 @@ pub async fn bill8_payments_process_payment(
 }
 
 // ── Split Payment — multiple payment methods per check ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/split-payment",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn split_payment(
     State(state): State<AppState>,
@@ -220,6 +242,17 @@ pub async fn split_payment(
 }
 
 // ── Discount application — percentage, dollar, promo code, employee meal, manager comp ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/discount",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn apply_discount(
     State(state): State<AppState>,
@@ -304,6 +337,17 @@ pub async fn apply_discount(
 }
 
 // ── Room Charge — POST /v1/payments/roomCharge → PMS folio posting ──
+#[utoipa::path(
+    post,
+    path = "/v1/payments/room-charge",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn room_charge(
     State(state): State<AppState>,
@@ -366,6 +410,17 @@ pub async fn room_charge(
 }
 
 // ── PMS guest profile lookup for room charges ──
+#[utoipa::path(
+    get,
+    path = "/v1/guests/lookup-by-room",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos-guest",
+)]
 
 pub async fn lookup_guest_by_room(
     State(state): State<AppState>,
@@ -433,6 +488,17 @@ pub async fn lookup_guest_by_room(
 }
 
 // ── PMS package redemption (e.g., "Breakfast Included" → $0 charge) ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/redeem-package",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn redeem_package(
     State(state): State<AppState>,

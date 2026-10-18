@@ -16,7 +16,7 @@ use sqlx::Row;
 /// `POST /v1/outlets/{outlet_id}/checks`
 #[utoipa::path(
     post,
-    path = "/v1/admin/orders",
+    path = "/v1/outlets/{outlet_id}/checks",
     request_body = serde_json::Value,
     responses(
         (status = 200, description = "Check created", body = serde_json::Value),
@@ -79,6 +79,17 @@ pub async fn create_check(
         "status": status,
     })))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn add_order_item(
     State(state): State<AppState>,
@@ -170,7 +181,7 @@ pub async fn add_order_item(
 /// `GET /v1/outlets/{outlet_id}/checks/{check_id}`
 #[utoipa::path(
     get,
-    path = "/v1/admin/orders/{id}",
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}",
     params(("id" = uuid::Uuid, Path, description = "Check ID")),
     responses(
         (status = 200, description = "Check details", body = serde_json::Value),
@@ -247,7 +258,7 @@ pub async fn get_check(
 /// `GET /v1/outlets/{outlet_id}/checks`
 #[utoipa::path(
     get,
-    path = "/v1/admin/orders",
+    path = "/v1/outlets/{outlet_id}/checks",
     responses(
         (status = 200, description = "List of orders", body = serde_json::Value),
         (status = 403, description = "Missing pos:admin scope"),
@@ -336,6 +347,17 @@ pub async fn search_checks(
 }
 
 // ── Check Transfer — to different table ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/transfer",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn transfer_check(
     State(state): State<AppState>,
@@ -390,6 +412,17 @@ pub async fn transfer_check(
 }
 
 // ── Check Split — by seat, by item, equally ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/split",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn split_check(
     State(state): State<AppState>,
@@ -447,6 +480,17 @@ pub async fn split_check(
 }
 
 // ── Check Hold/Recall ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/hold",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn hold_check(
     State(state): State<AppState>,
@@ -481,6 +525,17 @@ pub async fn hold_check(
         serde_json::json!({ "check_id": check_id, "status": "HELD" }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/recall",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn recall_check(
     State(state): State<AppState>,
@@ -517,6 +572,17 @@ pub async fn recall_check(
 }
 
 // ── Seat Assignment — assign items to specific seats ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/seat",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn assign_seat(
     State(state): State<AppState>,
@@ -549,6 +615,17 @@ pub async fn assign_seat(
 }
 
 // ── Void Item ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/orders/void",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn void_order_item(
     State(state): State<AppState>,
@@ -621,6 +698,17 @@ pub async fn void_order_item(
 }
 
 // ── Void Check ──
+#[utoipa::path(
+    post,
+    path = "/v1/outlets/{outlet_id}/checks/{check_id}/void",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "pos",
+)]
 
 pub async fn void_check(
     State(state): State<AppState>,
