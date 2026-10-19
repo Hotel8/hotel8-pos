@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Table management handlers — CRUD, status, combine/separate, floor plan.
+//! Table management handlers - CRUD, status, combine/separate, floor plan.
 //! Implements -.
 use crate::auth;
 use crate::event_emit::emit_tx;

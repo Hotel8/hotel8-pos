@@ -3,13 +3,13 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! POS check/order status machines — pure, DB-free transition rules.
+//! POS check/order status machines - pure, DB-free transition rules.
 //!
 //! Extracts the status guards previously hand-written in
 //! `handlers/orders.rs` (hold/recall/void string checks) and
 //! `handlers/payments.rs` (the paid-status SQL CASE) into testable pure
 //! functions. Normative matrices: `hotel8/design/sentin8-hotel8-rust-test-strategy.md`
-//! §3.5–3.7, mirroring `sentin8-hotel8-pos-technical-design.md` §4.3–4.4.
+//! §3.5-3.7, mirroring `sentin8-hotel8-pos-technical-design.md` §4.3-4.4.
 //!
 //! Every variant's [`CheckState::label`]/[`OrderState::label`] equals the
 //! corresponding `CREATE TYPE hotel8.pos_* AS ENUM (...)` value in
@@ -17,7 +17,7 @@
 
 use std::fmt;
 
-/// `hotel8.pos_check_status` — check lifecycle (POS design §4.3).
+/// `hotel8.pos_check_status` - check lifecycle (POS design §4.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckState {
     Open,
@@ -61,7 +61,7 @@ impl CheckState {
     /// - `VOIDED` / `REFUNDED` terminal
     ///
     /// Handlers enforce hold/recall in SQL (`WHERE status = 'OPEN'`), so the
-    /// matrix itself is only exercised from tests — targeted allow.
+    /// matrix itself is only exercised from tests - targeted allow.
     #[allow(dead_code)]
     pub fn can_transition_to(&self, next: Self) -> bool {
         use CheckState::*;
@@ -87,7 +87,7 @@ impl CheckState {
     ///
     /// Handlers currently apply this rule atomically in SQL
     /// (`payments.rs`), so this pure mirror is only exercised from tests
-    /// and the integration suite — hence the targeted `dead_code` allow.
+    /// and the integration suite - hence the targeted `dead_code` allow.
     #[allow(dead_code)]
     pub fn payment_outcome(total: rust_decimal::Decimal, paid_sum: rust_decimal::Decimal) -> Self {
         if total <= paid_sum {
@@ -99,7 +99,7 @@ impl CheckState {
 
     /// Void-authorization policy (`orders.rs::void_check`):
     /// - `VOIDED` checks cannot be voided again;
-    /// - `PAID` checks cannot be voided — refund instead;
+    /// - `PAID` checks cannot be voided - refund instead;
     /// - voids over $100.00 require manager approval.
     pub fn can_void(
         status: Self,
@@ -135,13 +135,13 @@ impl fmt::Display for CheckState {
 pub enum VoidError {
     /// 400 "Check already voided".
     AlreadyVoided,
-    /// 400 "Cannot void a paid check — use refund instead".
+    /// 400 "Cannot void a paid check - use refund instead".
     PaidNeedsRefund,
     /// 403 "Manager approval required for voids over $100.00".
     ManagerApprovalRequired,
 }
 
-/// `hotel8.pos_order_status` — kitchen order lifecycle (POS design §4.4).
+/// `hotel8.pos_order_status` - kitchen order lifecycle (POS design §4.4).
 ///
 /// Kitchen-stage transitions (SENT→PREPARING→READY→SERVED) are not yet
 /// exposed by a handler; documented + tested for the planned KDS endpoint.

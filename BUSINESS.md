@@ -1,4 +1,4 @@
-# Hotel8:POS — Business Requirements & Functionality
+# Hotel8:POS - Business Requirements & Functionality
 
 > Audience: product owners, business analysts, and anyone evaluating what
 > Hotel8:POS **does for the business**. For architecture read `README.md`;
@@ -42,10 +42,10 @@
 
 | Area | Business rule |
 |---|---|
-| Checks | A check starts when guests are seated and ends settled or voided; a paid check cannot be voided — only refunded through its flow. |
+| Checks | A check starts when guests are seated and ends settled or voided; a paid check cannot be voided - only refunded through its flow. |
 | Holds | A held check keeps the table while deferring kitchen fire; recall resumes normal service. |
 | Splits & merges | Checks split by seat/item; merging requires both checks in a mergeable state. |
-| Room charging | A room charge appends the amount to the guest's folio through PMS — the terminal never touches folio tables. |
+| Room charging | A room charge appends the amount to the guest's folio through PMS - the terminal never touches folio tables. |
 | Kitchen | Orders route to the configured printer/station group; the kitchen state progresses independently of the server view. |
 | Modifiers | Modifier groups constrain what can be combined on an item line (choice/range enforcement). |
 | Taxation | Tax groups attach to items; totals are computed per item's configuration. |
@@ -69,20 +69,20 @@
 | `hotel8:pos:report:eod_generated`, `report:export_requested` | Business-day close and exports |
 | `hotel8:pos:offline:synced` | Offline terminal reconciliation |
 
-**Inbound (consumed):** `hotel8:pms:reservation:checked_in` — prepares
+**Inbound (consumed):** `hotel8:pms:reservation:checked_in` - prepares
 tables/areas for arriving guests.
 
 ## 5. Business Rules & Invariants
 
 1. A check's total always equals its items (with modifiers and taxes) minus
    discounts, plus tips where applied.
-2. A void after payment is impossible — the refund flow is the only path.
+2. A void after payment is impossible - the refund flow is the only path.
 3. Room charges appear on the guest folio exactly once per settled amount.
 4. Held checks are excluded from the payable flow until recalled.
 5. Every manager-approval action carries the approving identity.
 6. Outlet end-of-day is reproducible: the report is generated from recorded
    events, never from ad-hoc aggregation.
-7. Offline sales reconcile without loss — every offline mutation surfaces in
+7. Offline sales reconcile without loss - every offline mutation surfaces in
    the sync event stream once.
 
 ## 6. Target-User Roles & Use Cases

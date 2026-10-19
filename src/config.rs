@@ -28,7 +28,7 @@ impl POSConfig {
                 .expect("HOTEL8_POS_PORT must be set by captain")
                 .parse()
                 .expect("HOTEL8_POS_PORT must be a number"),
-            // DBX (§VDC.3) — the DSN is REQUIRED and must name the vertical
+            // DBX (§VDC.3) - the DSN is REQUIRED and must name the vertical
             // database (hotel8): the shell verifies the service identity's
             // expected database and refuses to boot otherwise. There is no
             // platform-database fallback.

@@ -1,8 +1,8 @@
-# Hotel8:POS — Detailed Design Document
+# Hotel8:POS - Detailed Design Document
 
 ## 1. Scope & Context
 
-**Owned by POS:** database `hotel8`, schema `pos` — 14 tables (`pos.checks`,
+**Owned by POS:** database `hotel8`, schema `pos` - 14 tables (`pos.checks`,
 `pos.orders`, `pos.menu_items`, `pos.menu_categories`, `pos.modifiers`,
 `pos.modifier_groups`, `pos.payments`, `pos.tables`, `pos.service_areas`,
 `pos.printer_groups`, `pos.revenue_centers`, `pos.tax_groups`, `pos.outlets`,
@@ -66,7 +66,7 @@ graph LR
     ROUTER[router] --> H[handlers]
 ```
 
-### Request lifecycle — pay a check
+### Request lifecycle - pay a check
 
 ```mermaid
 sequenceDiagram
@@ -88,7 +88,7 @@ sequenceDiagram
     Note over DB: shell relay produces pos family post-commit
 ```
 
-### Request lifecycle — PMS check-in consumed
+### Request lifecycle - PMS check-in consumed
 
 ```mermaid
 sequenceDiagram
@@ -170,13 +170,13 @@ stateDiagram-v2
 - Package redemption (redeem hotel8:loyalty rewards at the table).
 - Reports incl. `report:eod_generated` + export request; offline terminal
   sync (`hotel8:pos:offline:synced`).
-- **Guest ordering (room service)** — guest-scoped routes the eGuest app
+- **Guest ordering (room service)** - guest-scoped routes the eGuest app
   calls through the BFF: `GET /v1/guest/{property_id}/menu` (menu items +
   categories from the outlet flagged `ROOM_SERVICE`), `POST
   /v1/guest/{property_id}/orders` (creates a `ROOM_SERVICE` check bound to
   the in-house reservation + room, opens with the ordered lines), `GET
   /v1/guest/{property_id}/orders/{check_id}` (status read-back). Guest
-  ordering reuses the same check/order machines — the only differences are
+  ordering reuses the same check/order machines - the only differences are
   the auto-created check attributes (room number + reservation id) and the
   scope gate (`hotel8:pos:guest:write`), which the guest session carries via
   the BFF instead of staff scopes.
@@ -184,17 +184,17 @@ stateDiagram-v2
 **Admin/RFU**: RFW pages + shared policy admin trio (same construction as
 PMS).
 
-### Cross-service data access — decision order (membus → bus → owner API)
+### Cross-service data access - decision order (membus → bus → owner API)
 
 POS consumes PMS state reactively: `hotel8:pms:reservation:checked_in` on
 the `pms` stream (consumer group `pos-table-prep`) opens table-prep for
-arrivals — the bus path. Synchronous reads (check-in verification before a
+arrivals - the bus path. Synchronous reads (check-in verification before a
 room-charge payment, package redemption eligibility) use the PMS owner API
-(`hotel8::pms::client::H8pmsClient` — `get_reservation`,
+(`hotel8::pms::client::H8pmsClient` - `get_reservation`,
 `search_reservations`) with a POS M2M token: read-your-writes/validation
 paths that must block the caller before committing, the narrow internal-API
-exception. MemBus: none — terminal state is local, nothing POS consumes
-ticks fast enough for newest-wins. There is no pms-schema GRANT — a
+exception. MemBus: none - terminal state is local, nothing POS consumes
+ticks fast enough for newest-wins. There is no pms-schema GRANT - a
 cross-service table grant is a defect, not an access path (principles §6.6a).
 
 ### Event flow
@@ -215,16 +215,16 @@ sequenceDiagram
 
 ## 5. Cross-Cutting Concerns
 
-- **Authentication** — `auth::verify_token` on every route (user + M2M);
+- **Authentication** - `auth::verify_token` on every route (user + M2M);
   terminal credentials map to ABAC attributes for location-bound authority.
-- **Tenant resolution + RLS** — ingress context headers only; context +
+- **Tenant resolution + RLS** - ingress context headers only; context +
   explicit `env_id` clauses co-applied on the same connection.
-- **Idempotency** — payment submission dedupes on client-supplied key; room
+- **Idempotency** - payment submission dedupes on client-supplied key; room
   charge idempotency key minted as `hotel8:pos:{transaction_id}` toward
   Bill8:Payments.
-- **Audit journaling** — every mutating handler rows `pos.audit_journal`
+- **Audit journaling** - every mutating handler rows `pos.audit_journal`
   in-transaction.
-- **Drain/TLS/pool** — identical to the platform contract (shell-owned).
+- **Drain/TLS/pool** - identical to the platform contract (shell-owned).
 
 ## 6. Failure Modes & Recovery
 
@@ -247,7 +247,7 @@ flowchart TD
 - Same single-runtime shape as PMS; pool cap 3.
 - Check mutation serializes naturally per check (single-row UPDATEs; state
   machine pre-SQL).
-- Hot path: order-add during service — single INSERT + outbox row.
+- Hot path: order-add during service - single INSERT + outbox row.
 - Kitchen display consumes the stream; a slow kitchen state never blocks the
   server path (consumer lag is bounded by the stream, not by POS tasks).
 
@@ -275,8 +275,8 @@ graph LR
 
 ```mermaid
 graph TD
-    U[Unit — CheckState/OrderState matrices] --> I[Integration — DB-free handler suites + policy parity]
-    I --> E[E2E UI — terminal-facing pages via BFF]
+    U[Unit - CheckState/OrderState matrices] --> I[Integration - DB-free handler suites + policy parity]
+    I --> E[E2E UI - terminal-facing pages via BFF]
 ```
 
 - Unit covers the full lifecycle matrices incl. held/void/refund gates.

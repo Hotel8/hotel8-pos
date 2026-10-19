@@ -3,7 +3,7 @@
 -- SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 -- SPDX-License-Identifier: Apache-2.0
 
--- H8POS — Point of Sale tables for the hospitality F&B industry.
+-- H8POS - Point of Sale tables for the hospitality F&B industry.
 --
 -- Creates tables: revenue_centers, service_areas, tables, menu_categories,
 -- menu_items, modifier_groups, modifiers, checks, orders, payments,
@@ -333,7 +333,7 @@ DROP POLICY IF EXISTS pos_printer_groups_rls ON pos.printer_groups;
 CREATE POLICY pos_printer_groups_rls ON pos.printer_groups
     USING (revenue_center_id IN (SELECT id FROM pos.revenue_centers));
 -- ──────────────────────────────────────────────────────────────────────────
--- Local outbox (DBX, architecture-principles §6.7) — producer path:
+-- Local outbox (DBX, architecture-principles §6.7) - producer path:
 -- rows are appended in the SAME transaction as the domain change; the
 -- shell's post-commit relay pushes them to Bus POST /v1/produce
 -- (M2M sentin8:bus:produce, idempotency_key = row id).
@@ -383,7 +383,7 @@ CREATE TRIGGER outbox_notify_trigger
 -- Local audit journal (architecture-principles §6.8): same-transaction
 -- journal rows; the shell's post-commit pusher ships them to Sys
 -- POST /v1/audit (M2M sentin8:sys:audit:write). A Sys outage only delays
--- delivery — rows persist until pushed.
+-- delivery - rows persist until pushed.
 -- Generated from sentin8_audit::audit_journal_sql("pos").
 -- ──────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos.audit_journal (

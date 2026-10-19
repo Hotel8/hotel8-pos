@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! H8POS reporting handlers — -.
+//! H8POS reporting handlers - -.
 use crate::auth;
 use crate::event_emit::{emit_on_pool, emit_tx};
 use crate::handlers::AppState;
@@ -183,7 +183,7 @@ pub async fn labor_report(
         .get("date")
         .and_then(|v| v.as_str())
         .unwrap_or("today");
-    // Labor data would come from an HR/scheduling system — return placeholder
+    // Labor data would come from an HR/scheduling system - return placeholder
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(serde_json::json!({
         "outlet_id": outlet_id, "date": date,
@@ -193,7 +193,7 @@ pub async fn labor_report(
             { "role": "COOK", "headcount": 4, "hours": 32.0, "labor_cost": "640.00" },
         ],
         "total_labor_cost": "1760.00",
-        "note": "Labor data is a placeholder — integrate with HR/scheduling system",
+        "note": "Labor data is a placeholder - integrate with HR/scheduling system",
     })))
 }
 
@@ -288,7 +288,7 @@ pub async fn end_of_day_report(
     })))
 }
 
-// ── Report export — PDF, Excel, CSV ──
+// ── Report export - PDF, Excel, CSV ──
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/reports/export/{report_type}",
@@ -324,7 +324,7 @@ pub async fn export_report(
         .get("date")
         .and_then(|v| v.as_str())
         .unwrap_or("today");
-    // Generate export — in production this would create a file and return a download URL
+    // Generate export - in production this would create a file and return a download URL
     let export_id = uuid::Uuid::new_v4();
     emit_on_pool(&state.pool, env_id, "hotel8:pos:report:export_requested", serde_json::json!({ "outlet_id": outlet_id, "report_type": &report_type, "format": format, "date": date, "export_id": export_id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
@@ -336,6 +336,6 @@ pub async fn export_report(
         "date": date,
         "status": "PENDING",
         "download_url": format!("/v1/outlets/{}/reports/export/{}/download", outlet_id, export_id),
-        "message": "Export queued — poll the download_url when ready",
+        "message": "Export queued - poll the download_url when ready",
     })))
 }

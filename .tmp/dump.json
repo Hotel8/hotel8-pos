@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "hotel8-pos",
-    "description": "Sentin8 H8POS — Point of Sale service.",
+    "description": "Sentin8 H8POS - Point of Sale service.",
     "license": {
       "name": "MIT OR Apache-2.0",
       "identifier": "MIT OR Apache-2.0"
@@ -40,7 +40,7 @@
         "tags": [
           "pos-guest"
         ],
-        "summary": "`GET /v1/guest/{property_id}/menu?outlet_id=` — menu catalog for the\nroom-service outlet (defaults to the property's first `ROOM_SERVICE`\noutlet when `outlet_id` is omitted).",
+        "summary": "`GET /v1/guest/{property_id}/menu?outlet_id=` - menu catalog for the\nroom-service outlet (defaults to the property's first `ROOM_SERVICE`\noutlet when `outlet_id` is omitted).",
         "operationId": "guest_menu",
         "responses": {
           "200": {
@@ -66,7 +66,7 @@
         "tags": [
           "pos-guest"
         ],
-        "summary": "`POST /v1/guest/{property_id}/orders` — room-service order. Creates an\n`OPEN` check bound to the in-house reservation + room, inserts the ordered\nlines (same machine the terminals use), returns the check + totals.",
+        "summary": "`POST /v1/guest/{property_id}/orders` - room-service order. Creates an\n`OPEN` check bound to the in-house reservation + room, inserts the ordered\nlines (same machine the terminals use), returns the check + totals.",
         "operationId": "guest_create_order",
         "responses": {
           "200": {
@@ -92,7 +92,7 @@
         "tags": [
           "pos-guest"
         ],
-        "summary": "`GET /v1/guest/{property_id}/orders/{check_id}` — order status read-back\nfor the ordering screen (prep states drive the UI stepper).",
+        "summary": "`GET /v1/guest/{property_id}/orders/{check_id}` - order status read-back\nfor the ordering screen (prep states drive the UI stepper).",
         "operationId": "guest_get_order",
         "responses": {
           "200": {
@@ -1826,7 +1826,7 @@
   "tags": [
     {
       "name": "pos",
-      "description": "Hotel8:POS admin API — orders, payments, reports"
+      "description": "Hotel8:POS admin API - orders, payments, reports"
     }
   ]
 }

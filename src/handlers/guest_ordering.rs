@@ -3,9 +3,9 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Guest-ordering (room service) handlers — the eGuest app surface.
+//! Guest-ordering (room service) handlers - the eGuest app surface.
 //!
-//! Contract: `services/pos/DESIGN.md` §4 "Guest ordering" — guest-scoped
+//! Contract: `services/pos/DESIGN.md` §4 "Guest ordering" - guest-scoped
 //! routes that reuse the staff check/order machines with the reservation bound
 //! at creation. The room-service outlet is the property's `ROOM_SERVICE`
 //! revenue center; menu reads come from its catalog.
@@ -30,7 +30,7 @@ use crate::handlers::AppState;
     tag = "pos-guest",
 )]
 
-/// `GET /v1/guest/{property_id}/menu?outlet_id=` — menu catalog for the
+/// `GET /v1/guest/{property_id}/menu?outlet_id=` - menu catalog for the
 /// room-service outlet (defaults to the property's first `ROOM_SERVICE`
 /// outlet when `outlet_id` is omitted).
 pub async fn guest_menu(
@@ -103,7 +103,7 @@ pub async fn guest_menu(
     tag = "pos-guest",
 )]
 
-/// `POST /v1/guest/{property_id}/orders` — room-service order. Creates an
+/// `POST /v1/guest/{property_id}/orders` - room-service order. Creates an
 /// `OPEN` check bound to the in-house reservation + room, inserts the ordered
 /// lines (same machine the terminals use), returns the check + totals.
 pub async fn guest_create_order(
@@ -151,7 +151,7 @@ pub async fn guest_create_order(
             )
         })?;
     // The check anchors to the in-house stay in this property (guest-ordering
-    // invariant): verify the reservation is CHECKED_IN here before binding —
+    // invariant): verify the reservation is CHECKED_IN here before binding -
     // never accept a caller-supplied room that is not in-house.
     let stay = sqlx::query(
         "SELECT r.assigned_room_number, g.first_name || ' ' || g.last_name AS guest_name
@@ -190,7 +190,7 @@ pub async fn guest_create_order(
     let check_number: String = row.get("check_number");
     let check_status: String = row.get("status");
 
-    // Ordered lines — same INSERT the staff `add_order_item` handler runs.
+    // Ordered lines - same INSERT the staff `add_order_item` handler runs.
     let mut lines: Vec<serde_json::Value> = Vec::new();
     for item in items {
         let menu_item_id: uuid::Uuid = item
@@ -279,7 +279,7 @@ pub async fn guest_create_order(
     tag = "pos-guest",
 )]
 
-/// `GET /v1/guest/{property_id}/orders/{check_id}` — order status read-back
+/// `GET /v1/guest/{property_id}/orders/{check_id}` - order status read-back
 /// for the ordering screen (prep states drive the UI stepper).
 pub async fn guest_get_order(
     State(state): State<AppState>,

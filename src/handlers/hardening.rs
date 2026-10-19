@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! H8POS hardening handlers — -.
+//! H8POS hardening handlers - -.
 use crate::auth;
 use crate::event_emit::{emit_on_pool, emit_tx};
 use crate::handlers::AppState;
@@ -12,7 +12,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use sqlx::Row;
 
-// ── User permissions — Server, Bartender, Shift Manager, General Manager, Administrator ──
+// ── User permissions - Server, Bartender, Shift Manager, General Manager, Administrator ──
 #[utoipa::path(
     get,
     path = "/v1/permissions",
@@ -168,7 +168,7 @@ pub async fn manager_approve(
     })))
 }
 
-// ── Offline support — queue orders and payments locally, sync when reconnected ──
+// ── Offline support - queue orders and payments locally, sync when reconnected ──
 #[utoipa::path(
     get,
     path = "/v1/offline-status",
@@ -260,7 +260,7 @@ pub async fn sync_offline_data(
     })))
 }
 
-// ── Kitchen display integration — order routing by printer group ──
+// ── Kitchen display integration - order routing by printer group ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/route-kitchen",
@@ -304,7 +304,7 @@ pub async fn route_order_to_kitchen(
     let item_name: String = order.get("item_name");
     let quantity: i32 = order.get("quantity");
     let special = order.get::<Option<String>, _>("special_instructions");
-    // Route to printer group — in production, look up the printer group for the menu item's category
+    // Route to printer group - in production, look up the printer group for the menu item's category
     let routing_id = uuid::Uuid::new_v4();
     emit_tx(
         &mut *conn,

@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! H8POS configuration handlers — service areas, menu categories, modifier
+//! H8POS configuration handlers - service areas, menu categories, modifier
 //! groups, item availability, bulk price updates, tax groups, printer groups,
 //! and payment method configuration.
 //!

@@ -1,4 +1,4 @@
-# README.md: Hotel8:POS — Point of Sale
+# README.md: Hotel8:POS - Point of Sale
 
 ## 1. Summary
 
@@ -45,35 +45,35 @@ graph TD
 
 ## 4. Key Traits and Data Structures
 
-- `CheckState` / `OrderState` — pure lifecycle machines (extracted from
+- `CheckState` / `OrderState` - pure lifecycle machines (extracted from
   handlers so transition rules are DB-free testable); void-authorization
   policy lives in the handler path, not ad-hoc in each route.
-- `Publisher` — caller identity carrier for outbox rows.
+- `Publisher` - caller identity carrier for outbox rows.
 - Terminal/register ABAC attributes surface through Shield policies
   (tenant-authored), keeping per-terminal authority data-driven.
 
 ## 5. Rationale, Trade-offs, and Alternatives
 
-- **Check lifecycle as a strict machine** — held/void/refund gates are legal
+- **Check lifecycle as a strict machine** - held/void/refund gates are legal
   only from specific states; the machine prevents agent error without
   cross-querying money state. Alternatives (procedural status flags) cannot
   be exhaustively tested.
-- **Room-charge as a settlement instruction to PMS** — the check records the
+- **Room-charge as a settlement instruction to PMS** - the check records the
   business event; folio movement is PMS's contract. Direct ledger writes were
   rejected (Bill8:Ledger owns money movement).
-- **Offline-first sync events** — terminals work disconnected and reconcile;
+- **Offline-first sync events** - terminals work disconnected and reconcile;
   `hotel8:pos:offline:synced` marks convergence rather than silent mutation.
-- **Event-first table preparation** — PMS check-in creates table prep
+- **Event-first table preparation** - PMS check-in creates table prep
   work without POS polling; the alternative (scheduled reconciliation) adds
   latency without adding correctness.
 
 ## 6. Internal Implementation & Invariants (Private Design)
 
 - Payment outcomes mirror to the documented SQL shape (payment result is
-  never derived from UI input — only from the settlement path).
+  never derived from UI input - only from the settlement path).
 - A held check cannot transition to paid without explicit recall; void after
   payment is refused with a refund flow instead.
-- Kitchen routing is an outbound event, not a table write — kitchen display
+- Kitchen routing is an outbound event, not a table write - kitchen display
   state is a consumer, not an owner.
 - No `unsafe` code; pool access always via the capped helper.
 

@@ -20,14 +20,14 @@ const PG_ROLES: &[PgRole] = &[PgRole {
     // DBX (§6.6): grants + scope-map rows live in the hotel8 vertical
     // database only (database-per-vertical, schema-per-service).
     database: "hotel8",
-    // This service owns all its reads — no cross-schema grants.
+    // This service owns all its reads - no cross-schema grants.
     cross_schema_grants: &[],
 }];
 
 /// M2M DCR scope grants (self-registration design §3.11). One entry per
 /// workload this service registers via DCR; `vertical enroll` upserts
 /// `certless:<workload>` rows into `sentin8.auth_m2m_scope_grants` (alignment
-/// doc §13). DBX (§6.7): `sentin8:bus:produce` rides the `pos` workload —
+/// doc §13). DBX (§6.7): `sentin8:bus:produce` rides the `pos` workload -
 /// the shell's producer relay shares its DCR client; `pos-audit` ships the
 /// local audit journal to Sys; `pos-policy`/`pos-tls` are the shell's
 /// Shield hot-reload and DB-free TLS host-context workloads.
@@ -99,7 +99,7 @@ const ADMIN_SCOPES: &[AdminScope] = &[
         role: "hotel8:pos:admin",
         scope: "hotel8:pos:report:read",
     },
-    // Guest ordering (room service) — eGuest calls through the BFF with the
+    // Guest ordering (room service) - eGuest calls through the BFF with the
     // guest session carrying these scopes (pos DESIGN.md §4 Guest ordering).
     AdminScope::Typed {
         role: "hotel8:pos:admin",
@@ -186,20 +186,20 @@ const ADMIN_UI_PAGES: &[AdminUiPage] = &[
     },
 ];
 
-/// The Shield text of the declared scope-mirror set — public so the
+/// The Shield text of the declared scope-mirror set - public so the
 /// policy wiring tests assert against the REAL seed (drift
 /// fails the suite instead of silently diverging from enrollment).
 pub const SCOPE_MIRROR_POLICIES: &str = "permit(principal, action == Action::\"hotel8:pos:admin\", resource) when { principal.scopes.contains(\"hotel8:pos:admin\") };\npermit(principal, action == Action::\"hotel8:pos:admin\", resource) when { principal.scopes.contains(\"hotel8:pos:order:write\") };\npermit(principal, action == Action::\"hotel8:pos:admin\", resource) when { principal.scopes.contains(\"hotel8:pos:read\") };\npermit(principal, action == Action::\"hotel8:pos:admin\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:admin\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:admin\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };\npermit(principal, action == Action::\"hotel8:pos:order:read\", resource) when { principal.scopes.contains(\"hotel8:pos:order:read\") };\npermit(principal, action == Action::\"hotel8:pos:order:read\", resource) when { principal.scopes.contains(\"hotel8:pos:read\") };\npermit(principal, action == Action::\"hotel8:pos:order:read\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:order:read\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:order:read\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };\npermit(principal, action == Action::\"hotel8:pos:order:write\", resource) when { principal.scopes.contains(\"hotel8:pos:order:write\") };\npermit(principal, action == Action::\"hotel8:pos:order:write\", resource) when { principal.scopes.contains(\"hotel8:pos:payment:write\") };\npermit(principal, action == Action::\"hotel8:pos:order:write\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:order:write\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:order:write\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };\npermit(principal, action == Action::\"hotel8:pos:payment:write\", resource) when { principal.scopes.contains(\"hotel8:pos:payment:write\") };\npermit(principal, action == Action::\"hotel8:pos:payment:write\", resource) when { principal.scopes.contains(\"hotel8:pos:read\") };\npermit(principal, action == Action::\"hotel8:pos:payment:write\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:payment:write\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:payment:write\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };\npermit(principal, action == Action::\"hotel8:pos:read\", resource) when { principal.scopes.contains(\"hotel8:pos:read\") };\npermit(principal, action == Action::\"hotel8:pos:read\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:read\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:read\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };\npermit(principal, action == Action::\"hotel8:pos:report:read\", resource) when { principal.scopes.contains(\"hotel8:pos:read\") };\npermit(principal, action == Action::\"hotel8:pos:report:read\", resource) when { principal.scopes.contains(\"hotel8:pos:report:read\") };\npermit(principal, action == Action::\"hotel8:pos:report:read\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:report:read\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:report:read\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };\npermit(principal, action == Action::\"hotel8:pos:guest:read\", resource) when { principal.scopes.contains(\"hotel8:pos:guest:read\") };\npermit(principal, action == Action::\"hotel8:pos:guest:read\", resource) when { principal.scopes.contains(\"hotel8:pos:read\") };\npermit(principal, action == Action::\"hotel8:pos:guest:read\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:guest:read\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:guest:read\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };\npermit(principal, action == Action::\"hotel8:pos:guest:write\", resource) when { principal.scopes.contains(\"hotel8:pos:guest:write\") };\npermit(principal, action == Action::\"hotel8:pos:guest:write\", resource) when { principal.scopes.contains(\"hotel8:pos:order:write\") };\npermit(principal, action == Action::\"hotel8:pos:guest:write\", resource) when { principal.scopes.contains(\"sentin8:sys:admin\") };\npermit(principal, action == Action::\"hotel8:pos:guest:write\", resource) when { principal.scopes.contains(\"sentin8:sys:env:admin\") };\npermit(principal, action == Action::\"hotel8:pos:guest:write\", resource) when { principal.scopes.contains(\"sentin8:sys:org:admin\") };";
 
 /// Default declarative policy set (Sentin8:Policy design §3.2/§3.4,
 /// seeded by `vertical enroll` as `origin='platform'`, `mode='enforced'`):
-/// action-granular scope permits over the LIVE effective scope set — the
+/// action-granular scope permits over the LIVE effective scope set - the
 /// exact mirror of the gates this service's handlers evaluate in step 5
 /// (policy design §4.3). Enforced: step 5 is the
 /// only gate; shadow is the emergency one-UPDATE rollback lever only.
 const POLICIES: &[PolicySetDecl] = &[PolicySetDecl {
     policy_set_name: "scope-mirror",
-    description: "Action-granular scope permits for hotel8:pos over the LIVE effective scope set (design §3.1d). Enforced — step 5 is the only gate.",
+    description: "Action-granular scope permits for hotel8:pos over the LIVE effective scope set (design §3.1d). Enforced - step 5 is the only gate.",
     // Shield text lives in SCOPE_MIRROR_POLICIES (single source).
     policies: SCOPE_MIRROR_POLICIES,
     schema: None,
@@ -207,7 +207,7 @@ const POLICIES: &[PolicySetDecl] = &[PolicySetDecl {
     default_enabled: true,
 }];
 
-/// Default ReBAC relation tuples (design §3.1c) — none declared by this
+/// Default ReBAC relation tuples (design §3.1c) - none declared by this
 /// service today; env admins author their own graph (staff→station,
 /// channel-partner, holder edges) via the relations admin API.
 const RELATIONS: &[RelationDecl] = &[];

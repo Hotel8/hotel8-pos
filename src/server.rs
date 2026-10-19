@@ -15,7 +15,7 @@ pub async fn build_state(
     let config = crate::config::POSConfig::from_env();
 
     // Cert-presenting Bus client (CERTFREE-4V): the `pos` workload
-    // CERTIFICATE is the identity — no DCR, no token (auth DESIGN
+    // CERTIFICATE is the identity - no DCR, no token (auth DESIGN
     // §4.3f); the mint retries while the fleet boots.
     let bus_client = loop {
         match sentin8::bus::client::BusClient::for_workload(
@@ -34,7 +34,7 @@ pub async fn build_state(
     };
 
     // PMS cross-service client (CERTFREE-4V): this service presents its
-    // own `pos` workload certificate — PMS's TLS layer authenticates
+    // own `pos` workload certificate - PMS's TLS layer authenticates
     // the handshake and the registry map authorizes the scopes (the
     // `pms:reservations:read` / `pms:profiles:read` grants ride the
     // `pos` map row). The mint retries while the fleet boots.
@@ -61,7 +61,7 @@ pub async fn build_state(
     // decisions emit to Stat (§4.2f). The engine is stored in AppState so
     // handlers gate via `policy::require` (step 5 is the ONLY gate).
     // ── Sentin8:Policy (Shield, shell-owned boot): consume the
-    // engine the shell booted in step 8 — no second engine, consumer, or
+    // engine the shell booted in step 8 - no second engine, consumer, or
     // DCR registration here.
     let policy_engine = core.admin.policy.clone();
 
@@ -79,7 +79,7 @@ pub async fn build_state(
         },
     };
 
-    // Event-driven consumer — subscribes to the PMS stream family.
+    // Event-driven consumer - subscribes to the PMS stream family.
     crate::event_consumer::spawn(core.pool.clone(), state.bus_client.clone());
 
     Ok(state)
@@ -88,7 +88,7 @@ pub async fn build_state(
 /// Add this service's routes onto the shell-provided router. The shell
 /// owns the boot sequence, state binding, OpenAPI merge and the standard
 /// middleware stack; this adds ONLY routes (including the service's own
-/// `/v1/health` — custom payload).
+/// `/v1/health` - custom payload).
 pub fn routes(
     router: axum::Router<crate::handlers::AppState>,
 ) -> axum::Router<crate::handlers::AppState> {
@@ -186,13 +186,13 @@ pub fn routes(
         .route("/v1/offline-status", get(handlers::hardening::get_offline_status))
         .route("/v1/offline-sync", post(handlers::hardening::sync_offline_data))
         .route("/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/route-kitchen", post(handlers::hardening::route_order_to_kitchen))
-        // ── Guest ordering (room service) — eGuest surface ──
+        // ── Guest ordering (room service) - eGuest surface ──
         .route("/v1/guest/{property_id}/menu", get(handlers::guest_ordering::guest_menu))
         .route("/v1/guest/{property_id}/orders", post(handlers::guest_ordering::guest_create_order))
         .route("/v1/guest/{property_id}/orders/{check_id}", get(handlers::guest_ordering::guest_get_order))
 }
 
-/// Shared policy-admin surface accessor — the shared
+/// Shared policy-admin surface accessor - the shared
 /// handlers extract this service's admin state via `HasPolicyAdmin`.
 impl sentin8::shield::admin::HasPolicyAdmin for crate::handlers::AppState {
     fn policy_admin(&self) -> &sentin8::shield::admin::SharedAdminState {

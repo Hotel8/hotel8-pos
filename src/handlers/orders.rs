@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Order handlers — create checks, add items, send to kitchen.
+//! Order handlers - create checks, add items, send to kitchen.
 use crate::auth;
 use crate::check_state::{CheckState, VoidError};
 use crate::event_emit::emit_tx;
@@ -253,7 +253,7 @@ pub async fn get_check(
     })))
 }
 
-// ── Check search — by table, server, status, date, check number ──
+// ── Check search - by table, server, status, date, check number ──
 
 /// `GET /v1/outlets/{outlet_id}/checks`
 #[utoipa::path(
@@ -346,7 +346,7 @@ pub async fn search_checks(
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
-// ── Check Transfer — to different table ──
+// ── Check Transfer - to different table ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/transfer",
@@ -411,7 +411,7 @@ pub async fn transfer_check(
     ))
 }
 
-// ── Check Split — by seat, by item, equally ──
+// ── Check Split - by seat, by item, equally ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/split",
@@ -571,7 +571,7 @@ pub async fn recall_check(
     ))
 }
 
-// ── Seat Assignment — assign items to specific seats ──
+// ── Seat Assignment - assign items to specific seats ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/seat",
@@ -751,7 +751,7 @@ pub async fn void_check(
             }
             VoidError::PaidNeedsRefund => (
                 StatusCode::BAD_REQUEST,
-                "Cannot void a paid check — use refund instead".to_string(),
+                "Cannot void a paid check - use refund instead".to_string(),
             ),
             VoidError::ManagerApprovalRequired => (
                 StatusCode::FORBIDDEN,

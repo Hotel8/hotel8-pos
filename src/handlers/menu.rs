@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Menu management handlers — categories, items, modifiers.
+//! Menu management handlers - categories, items, modifiers.
 use crate::auth;
 use crate::event_emit::emit_tx;
 use crate::handlers::AppState;

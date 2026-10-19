@@ -3,10 +3,10 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Integration tests for Hotel8:POS — pure-logic paths, no database.
+//! Integration tests for Hotel8:POS - pure-logic paths, no database.
 //!
 //! Mirrors the bill8-payments convention. Covered (see
-//! `hotel8/design/sentin8-hotel8-rust-test-strategy.md` §3.5–3.7):
+//! `hotel8/design/sentin8-hotel8-rust-test-strategy.md` §3.5-3.7):
 //! - Check lifecycle transitions (orders.rs hold/recall/void guards).
 //! - Void-authorization policy (manager approval > $100.00).
 //! - Payment-application outcome (PAID vs PARTIALLY_PAID).
@@ -26,7 +26,7 @@ fn d(cents: i64) -> Decimal {
 
 #[test]
 fn hold_only_from_open() {
-    // orders.rs::hold_check — SQL `AND status = 'OPEN'`.
+    // orders.rs::hold_check - SQL `AND status = 'OPEN'`.
     assert!(CheckState::Open.can_transition_to(CheckState::Held));
     for s in [
         CheckState::Held,
@@ -41,7 +41,7 @@ fn hold_only_from_open() {
 
 #[test]
 fn recall_only_from_held() {
-    // orders.rs::recall_check — SQL `AND status = 'HELD'`.
+    // orders.rs::recall_check - SQL `AND status = 'HELD'`.
     assert!(CheckState::Held.can_transition_to(CheckState::Open));
     for s in [
         CheckState::Open,
@@ -120,7 +120,7 @@ fn order_served_is_terminal() {
 #[test]
 fn order_void_all_on_check_void() {
     // orders.rs::void_check cancels all non-served orders; SERVED items are
-    // already consumed and the SQL cancels them too — the machine documents
+    // already consumed and the SQL cancels them too - the machine documents
     // which pre-serve states permit cancellation.
     for s in [OrderState::Sent, OrderState::Preparing, OrderState::Ready] {
         assert!(

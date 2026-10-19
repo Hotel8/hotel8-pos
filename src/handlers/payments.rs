@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! Payment handlers — post payments to checks.
+//! Payment handlers - post payments to checks.
 //!
 //! The `PAID` vs `PARTIALLY_PAID` outcome after posting is the pure
 //! `check_state::CheckState::payment_outcome` rule, mirrored in the SQL
@@ -91,7 +91,7 @@ pub async fn post_payment(
     })))
 }
 
-// ── Payments integration — card tokenization, authorization, capture ──
+// ── Payments integration - card tokenization, authorization, capture ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/payments-process",
@@ -167,7 +167,7 @@ pub async fn bill8_payments_process_payment(
     })))
 }
 
-// ── Split Payment — multiple payment methods per check ──
+// ── Split Payment - multiple payment methods per check ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/split-payment",
@@ -241,7 +241,7 @@ pub async fn split_payment(
     ))
 }
 
-// ── Discount application — percentage, dollar, promo code, employee meal, manager comp ──
+// ── Discount application - percentage, dollar, promo code, employee meal, manager comp ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/discount",
@@ -336,7 +336,7 @@ pub async fn apply_discount(
     })))
 }
 
-// ── Room Charge — POST /v1/payments/roomCharge → PMS folio posting ──
+// ── Room Charge - POST /v1/payments/roomCharge → PMS folio posting ──
 #[utoipa::path(
     post,
     path = "/v1/payments/room-charge",
@@ -448,10 +448,10 @@ pub async fn lookup_guest_by_room(
             )
         })?;
     // B1: in-house reservation lookup via the PMS HTTP API. The API's
-    // reservation projection carries assigned_room_number — scan the
+    // reservation projection carries assigned_room_number - scan the
     // property's recent CHECKED_IN reservations for a room match.
     // (Room→property scoping: pos uses the env's property set; the property
-    // id arrives from the outlet config in a follow-up story — for now the
+    // id arrives from the outlet config in a follow-up story - for now the
     // PMS search runs without a property filter param beyond the endpoint's
     // required property_id, so resolve it from the outlet's property.)
     let property_id = super::property_id_for_env_pool(&state.pool, env_id)
