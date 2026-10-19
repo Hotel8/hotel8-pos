@@ -10,6 +10,10 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pos::contracts::{
+    DailySalesSummary, EndOfDayReport, EodPaymentLine, ExportReportQueued, ItemSalesReport,
+    ItemSalesRow, LaborReport, LaborRow,
+};
 use sqlx::Row;
 
 // ── Daily Sales Summary ──
@@ -19,7 +23,7 @@ use sqlx::Row;
     get,
     path = "/v1/outlets/{outlet_id}/reports/sales",
     responses(
-        (status = 200, description = "Daily sales summary report", body = serde_json::Value),
+        (status = 200, description = "Daily sales summary report", body = DailySalesSummary),
         (status = 403, description = "Missing pos:admin scope"),
     ),
     security(("pos:admin" = [])),
@@ -30,7 +34,7 @@ pub async fn daily_sales_summary(
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<DailySalesSummary>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -61,16 +65,17 @@ pub async fn daily_sales_summary(
     .bind(outlet_id).bind(date)
     .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "outlet_id": outlet_id, "date": date,
-        "total_checks": row.get::<i64, _>("total_checks"),
-        "paid_checks": row.get::<i64, _>("paid_checks"),
-        "voided_checks": row.get::<i64, _>("voided_checks"),
-        "gross_sales": row.get::<String, _>("gross_sales"),
-        "net_sales": row.get::<String, _>("net_sales"),
-        "tax_collected": row.get::<String, _>("tax_collected"),
-        "total_tips": row.get::<String, _>("total_tips"),
-    })))
+    Ok(Json(DailySalesSummary {
+        outlet_id,
+        date: date.to_string(),
+        total_checks: row.get::<i64, _>("total_checks"),
+        paid_checks: row.get::<i64, _>("paid_checks"),
+        voided_checks: row.get::<i64, _>("voided_checks"),
+        gross_sales: row.get::<String, _>("gross_sales"),
+        net_sales: row.get::<String, _>("net_sales"),
+        tax_collected: row.get::<String, _>("tax_collected"),
+        total_tips: row.get::<String, _>("total_tips"),
+    }))
 }
 
 // ── Item Sales Report ──
@@ -78,7 +83,7 @@ pub async fn daily_sales_summary(
     get,
     path = "/v1/outlets/{outlet_id}/reports/items",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Item sales lines", body = ItemSalesReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -91,7 +96,7 @@ pub async fn item_sales_report(
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ItemSalesReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -130,31 +135,31 @@ pub async fn item_sales_report(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<ItemSalesRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "menu_item_id": r.get::<uuid::Uuid, _>("menu_item_id"),
-                "item_name": r.get::<String, _>("item_name"),
-                "item_code": r.get::<String, _>("item_code"),
-                "total_quantity": r.get::<i64, _>("total_quantity"),
-                "total_revenue": r.get::<String, _>("total_revenue"),
-                "order_count": r.get::<i64, _>("order_count"),
-            })
+        .map(|r| ItemSalesRow {
+            menu_item_id: r.get::<uuid::Uuid, _>("menu_item_id"),
+            item_name: r.get::<String, _>("item_name"),
+            item_code: r.get::<String, _>("item_code"),
+            total_quantity: r.get::<i64, _>("total_quantity"),
+            total_revenue: r.get::<String, _>("total_revenue"),
+            order_count: r.get::<i64, _>("order_count"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "outlet_id": outlet_id, "startDate": start, "endDate": end, "items": items }),
-    ))
+    Ok(Json(ItemSalesReport {
+        outlet_id,
+        start_date: start.to_string(),
+        end_date: end.to_string(),
+        items,
+    }))
 }
-
 // ── Labor Report ──
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/reports/labor",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Labor report (placeholder HR data)", body = LaborReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -167,7 +172,7 @@ pub async fn labor_report(
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<LaborReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -185,16 +190,33 @@ pub async fn labor_report(
         .unwrap_or("today");
     // Labor data would come from an HR/scheduling system - return placeholder
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "outlet_id": outlet_id, "date": date,
-        "labor": [
-            { "role": "SERVER", "headcount": 5, "hours": 40.0, "labor_cost": "800.00" },
-            { "role": "BARTENDER", "headcount": 2, "hours": 16.0, "labor_cost": "320.00" },
-            { "role": "COOK", "headcount": 4, "hours": 32.0, "labor_cost": "640.00" },
+    Ok(Json(LaborReport {
+        outlet_id,
+        date: date.to_string(),
+        labor: vec![
+            LaborRow {
+                role: "SERVER".to_string(),
+                headcount: 5,
+                hours: 40.0,
+                labor_cost: "800.00".to_string(),
+            },
+            LaborRow {
+                role: "BARTENDER".to_string(),
+                headcount: 2,
+                hours: 16.0,
+                labor_cost: "320.00".to_string(),
+            },
+            LaborRow {
+                role: "COOK".to_string(),
+                headcount: 4,
+                hours: 32.0,
+                labor_cost: "640.00".to_string(),
+            },
         ],
-        "total_labor_cost": "1760.00",
-        "note": "Labor data is a placeholder - integrate with HR/scheduling system",
-    })))
+        total_labor_cost: "1760.00".to_string(),
+        note: "Labor data is a placeholder - integrate with HR/scheduling system"
+            .to_string(),
+    }))
 }
 
 // ── End of Day Report ──
@@ -202,7 +224,7 @@ pub async fn labor_report(
     get,
     path = "/v1/outlets/{outlet_id}/reports/end-of-day",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "End-of-day close report", body = EndOfDayReport),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -215,7 +237,7 @@ pub async fn end_of_day_report(
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<EndOfDayReport>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -257,16 +279,16 @@ pub async fn end_of_day_report(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let payment_breakdown: Vec<serde_json::Value> = payments
+    let payment_breakdown: Vec<EodPaymentLine> = payments
         .iter()
         .map(|r| {
             let pt: String = r.get("payment_type");
-            serde_json::json!({
-                "payment_type": pt,
-                "count": r.get::<i64, _>("count"),
-                "total_amount": r.get::<String, _>("total_amount"),
-                "total_tips": r.get::<String, _>("total_tips"),
-            })
+            EodPaymentLine {
+                payment_type: pt,
+                count: r.get::<i64, _>("count"),
+                total_amount: r.get::<String, _>("total_amount"),
+                total_tips: r.get::<String, _>("total_tips"),
+            }
         })
         .collect();
     emit_tx(
@@ -279,13 +301,14 @@ pub async fn end_of_day_report(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "outlet_id": outlet_id, "date": date,
-        "total_checks": sales.get::<i64, _>("total_checks"),
-        "gross_sales": sales.get::<String, _>("gross_sales"),
-        "tax_collected": sales.get::<String, _>("tax_collected"),
-        "payment_breakdown": payment_breakdown,
-    })))
+    Ok(Json(EndOfDayReport {
+        outlet_id,
+        date: date.to_string(),
+        total_checks: sales.get::<i64, _>("total_checks"),
+        gross_sales: sales.get::<String, _>("gross_sales"),
+        tax_collected: sales.get::<String, _>("tax_collected"),
+        payment_breakdown,
+    }))
 }
 
 // ── Report export - PDF, Excel, CSV ──
@@ -293,7 +316,7 @@ pub async fn end_of_day_report(
     get,
     path = "/v1/outlets/{outlet_id}/reports/export/{report_type}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Export queued (poll download_url)", body = ExportReportQueued),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -306,7 +329,7 @@ pub async fn export_report(
     headers: axum::http::HeaderMap,
     Path((outlet_id, report_type)): Path<(uuid::Uuid, String)>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ExportReportQueued>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -328,14 +351,17 @@ pub async fn export_report(
     let export_id = uuid::Uuid::new_v4();
     emit_on_pool(&state.pool, env_id, "hotel8:pos:report:export_requested", serde_json::json!({ "outlet_id": outlet_id, "report_type": &report_type, "format": format, "date": date, "export_id": export_id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
-    Ok(Json(serde_json::json!({
-        "export_id": export_id,
-        "outlet_id": outlet_id,
-        "report_type": report_type,
-        "format": format,
-        "date": date,
-        "status": "PENDING",
-        "download_url": format!("/v1/outlets/{}/reports/export/{}/download", outlet_id, export_id),
-        "message": "Export queued - poll the download_url when ready",
-    })))
+    Ok(Json(ExportReportQueued {
+        export_id,
+        outlet_id,
+        report_type,
+        format: format.to_string(),
+        date: date.to_string(),
+        status: "PENDING".to_string(),
+        download_url: format!(
+            "/v1/outlets/{}/reports/export/{}/download",
+            outlet_id, export_id
+        ),
+        message: "Export queued - poll the download_url when ready".to_string(),
+    }))
 }

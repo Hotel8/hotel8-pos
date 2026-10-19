@@ -18,11 +18,16 @@ use sqlx::Row;
 use crate::auth;
 use crate::event_emit::{emit_tx, Publisher};
 use crate::handlers::AppState;
+use hotel8::pos::contracts::{
+    GuestMenu, GuestMenuItem, GuestOrderCreateRequest, GuestOrderCreated, GuestOrderLine,
+    GuestOrderLineView, GuestOrderStatus,
+};
 #[utoipa::path(
     get,
     path = "/v1/guest/{property_id}/menu",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Room-service menu (prices as decimal strings)", body = GuestMenu),
+        (status = 404, description = "No room-service outlet for this property"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -38,7 +43,7 @@ pub async fn guest_menu(
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<GuestMenu>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -74,28 +79,30 @@ pub async fn guest_menu(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let menu: Vec<serde_json::Value> = items
+    let menu: Vec<GuestMenuItem> = items
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<String, _>("id"),
-                "name": r.get::<String, _>("item_name"),
-                "description": r.get::<Option<String>, _>("description").unwrap_or_default(),
-                "price": r.get::<String, _>("price"),
-                "category": r.get::<String, _>("category"),
-            })
+        .map(|r| GuestMenuItem {
+            id: r.get::<String, _>("id"),
+            name: r.get::<String, _>("item_name"),
+            description: r.get::<Option<String>, _>("description").unwrap_or_default(),
+            price: r.get::<String, _>("price"),
+            category: r.get::<String, _>("category"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "outlet_id": outlet_id, "items": menu }),
-    ))
+    Ok(Json(GuestMenu {
+        outlet_id,
+        items: menu,
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/guest/{property_id}/orders",
+    request_body = GuestOrderCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Created room-service order", body = GuestOrderCreated),
+        (status = 400, description = "items/outlet_id/reservation_id missing"),
+        (status = 404, description = "Reservation not in-house at this property"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -110,8 +117,8 @@ pub async fn guest_create_order(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<GuestOrderCreateRequest>,
+) -> Result<Json<GuestOrderCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -124,10 +131,7 @@ pub async fn guest_create_order(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let items = req
-        .get("items")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "items array required".to_string()))?;
+    let items = req.items.clone();
     if items.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -135,21 +139,8 @@ pub async fn guest_create_order(
         ));
     }
 
-    let outlet_id: uuid::Uuid = req
-        .get("outlet_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "outlet_id required".to_string()))?;
-    let reservation_id: uuid::Uuid = req
-        .get("reservation_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "reservation_id required".to_string(),
-            )
-        })?;
+    let outlet_id = req.outlet_id;
+    let reservation_id = req.reservation_id;
     // The check anchors to the in-house stay in this property (guest-ordering
     // invariant): verify the reservation is CHECKED_IN here before binding -
     // never accept a caller-supplied room that is not in-house.
@@ -166,11 +157,7 @@ pub async fn guest_create_order(
     .ok_or_else(|| super::err_not_found("Reservation is not an in-house stay at this property"))?;
     let room_number = stay
         .get::<Option<String>, _>("assigned_room_number")
-        .or_else(|| {
-            req.get("room_number")
-                .and_then(|v| v.as_str())
-                .map(str::to_owned)
-        })
+        .or_else(|| req.room_number.clone())
         .unwrap_or_default();
     let guest_name: String = stay.get("guest_name");
     let order_no = format!("RS-{}", chrono::Utc::now().format("%Y%m%d%H%M%S%3f"));
@@ -191,19 +178,10 @@ pub async fn guest_create_order(
     let check_status: String = row.get("status");
 
     // Ordered lines - same INSERT the staff `add_order_item` handler runs.
-    let mut lines: Vec<serde_json::Value> = Vec::new();
-    for item in items {
-        let menu_item_id: uuid::Uuid = item
-            .get("menu_item_id")
-            .and_then(|v| v.as_str())
-            .and_then(|s| uuid::Uuid::parse_str(s).ok())
-            .ok_or_else(|| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    "each item needs menu_item_id".to_string(),
-                )
-            })?;
-        let quantity = item.get("quantity").and_then(|v| v.as_u64()).unwrap_or(1) as i32;
+    let mut lines: Vec<GuestOrderLine> = Vec::new();
+    for item in items.iter() {
+        let menu_item_id = item.menu_item_id;
+        let quantity = item.quantity;
         if quantity < 1 {
             return Err((StatusCode::BAD_REQUEST, "quantity must be >= 1".to_string()));
         }
@@ -229,13 +207,13 @@ pub async fn guest_create_order(
         .fetch_one(&mut *conn)
         .await
         .map_err(super::err_db)?;
-        lines.push(serde_json::json!({
-            "id": line.get::<uuid::Uuid, _>("id"),
-            "menu_item_id": menu_item_id,
-            "name": mi.get::<String, _>("item_name"),
-            "quantity": quantity,
-            "unit_price": price_str,
-        }));
+        lines.push(GuestOrderLine {
+            id: line.get::<uuid::Uuid, _>("id"),
+            menu_item_id,
+            name: mi.get::<String, _>("item_name"),
+            quantity,
+            unit_price: price_str,
+        });
     }
     // Recompute the check totals from its lines.
     sqlx::query(
@@ -260,18 +238,19 @@ pub async fn guest_create_order(
 
     conn.commit().await.map_err(super::err_db)?;
 
-    Ok(Json(serde_json::json!({
-        "check_id": check_id,
-        "check_number": check_number,
-        "status": check_status,
-        "items": lines,
-    })))
+    Ok(Json(GuestOrderCreated {
+        check_id,
+        check_number,
+        status: check_status,
+        items: lines,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/guest/{property_id}/orders/{check_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Order read-back (prep states)", body = GuestOrderStatus),
+        (status = 404, description = "Order not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -285,7 +264,7 @@ pub async fn guest_get_order(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((property_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<GuestOrderStatus>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -317,27 +296,27 @@ pub async fn guest_get_order(
     .await
     .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "check_id": check.get::<String, _>("id"),
-        "check_number": check.get::<String, _>("check_number"),
-        "status": check.get::<String, _>("status"),
-        "subtotal": check.get::<String, _>("subtotal"),
-        "tax_total": check.get::<String, _>("tax_total"),
-        "total": check.get::<String, _>("total"),
-        "room_number": check.get::<Option<String>, _>("room_number"),
-        "reservation_id": check.get::<Option<String>, _>("reservation_id"),
-        "items": lines
+    Ok(Json(GuestOrderStatus {
+        check_id: check.get::<String, _>("id"),
+        check_number: check.get::<String, _>("check_number"),
+        status: check.get::<String, _>("status"),
+        subtotal: check.get::<String, _>("subtotal"),
+        tax_total: check.get::<String, _>("tax_total"),
+        total: check.get::<String, _>("total"),
+        room_number: check.get::<Option<String>, _>("room_number"),
+        reservation_id: check.get::<Option<String>, _>("reservation_id"),
+        items: lines
             .iter()
             .map(|l| {
-                serde_json::json!({
-                    "id": l.get::<String, _>("id"),
-                    "name": l.get::<String, _>("item_name"),
-                    "quantity": l.get::<i32, _>("quantity"),
-                    "unit_price": l.get::<String, _>("unit_price"),
-                    "line_total": l.get::<String, _>("line_total"),
-                    "status": l.get::<String, _>("status"),
-                })
+                GuestOrderLineView {
+                    id: l.get::<String, _>("id"),
+                    name: l.get::<String, _>("item_name"),
+                    quantity: l.get::<i32, _>("quantity"),
+                    unit_price: l.get::<String, _>("unit_price"),
+                    line_total: l.get::<String, _>("line_total"),
+                    status: l.get::<String, _>("status"),
+                }
             })
             .collect::<Vec<_>>(),
-    })))
+    }))
 }

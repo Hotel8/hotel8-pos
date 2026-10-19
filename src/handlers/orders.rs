@@ -11,15 +11,21 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pos::contracts::{
+    AddedOrderLine, AddOrderItemRequest, AssignSeatRequest, CheckCreated, CheckCreateRequest,
+    CheckDetail, CheckList, CheckStateChange, CheckSummary, CheckVoidResult, OrderItemVoidResult,
+    OrderLine, SeatAssigned, SplitCheckRequest, SplitCheckResult, SplitPart, TransferCheckRequest,
+    TransferCheckResult, VoidCheckRequest, VoidOrderItemRequest,
+};
 use sqlx::Row;
 
 /// `POST /v1/outlets/{outlet_id}/checks`
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks",
-    request_body = serde_json::Value,
+    request_body = CheckCreateRequest,
     responses(
-        (status = 200, description = "Check created", body = serde_json::Value),
+        (status = 200, description = "Check created", body = CheckCreated),
         (status = 403, description = "Missing pos:admin scope"),
     ),
     security(("pos:admin" = [])),
@@ -29,8 +35,8 @@ pub async fn create_check(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<CheckCreateRequest>,
+) -> Result<Json<CheckCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -43,20 +49,17 @@ pub async fn create_check(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let check_number = format!("CHK-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
-    let table_id = req
-        .get("table_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok());
-    let guest_name = req.get("guest_name").and_then(|v| v.as_str());
-    let guest_count = req.get("guest_count").and_then(|v| v.as_u64()).unwrap_or(1) as i32;
-    let room_number = req.get("room_number").and_then(|v| v.as_str());
+    let table_id = req.table_id;
+    let guest_name = req.guest_name.clone();
+    let guest_count = req.guest_count;
+    let room_number = req.room_number.clone();
     let row = sqlx::query("INSERT INTO pos.checks (revenue_center_id, table_id, check_number, guest_name, guest_count, room_number) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, check_number, status")
         .bind(outlet_id)
         .bind(table_id)
         .bind(&check_number)
-        .bind(guest_name)
+        .bind(&guest_name)
         .bind(guest_count)
-        .bind(room_number)
+        .bind(&room_number)
         .fetch_one(&mut *conn)
         .await
         .map_err(super::err_db)?;
@@ -72,18 +75,21 @@ pub async fn create_check(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": check_id,
-        "outlet_id": outlet_id,
-        "check_number": check_number,
-        "status": status,
-    })))
+    Ok(Json(CheckCreated {
+        id: check_id,
+        outlet_id,
+        check_number,
+        status,
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders",
+    request_body = AddOrderItemRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Added order line", body = AddedOrderLine),
+        (status = 400, description = "menu_item_id missing/invalid"),
+        (status = 404, description = "Menu item not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -95,8 +101,8 @@ pub async fn add_order_item(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<AddOrderItemRequest>,
+) -> Result<Json<AddedOrderLine>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -109,17 +115,8 @@ pub async fn add_order_item(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let menu_item_id: uuid::Uuid = req
-        .get("menu_item_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "menu_item_id is required".to_string(),
-            )
-        })?;
-    let quantity: i32 = req.get("quantity").and_then(|v| v.as_u64()).unwrap_or(1) as i32;
+    let menu_item_id = req.menu_item_id;
+    let quantity = req.quantity;
 
     // Get menu item price
     let item = sqlx::query("SELECT item_name, price::text as price FROM pos.menu_items WHERE id = $1 AND revenue_center_id = $2")
@@ -142,8 +139,8 @@ pub async fn add_order_item(
         .bind(quantity)
         .bind(unit_price.to_string())
         .bind(line_total.to_string())
-        .bind(serde_json::to_value(req.get("modifiers").cloned().unwrap_or(serde_json::Value::Array(vec![]))).unwrap_or(serde_json::Value::Array(vec![])))
-        .bind(req.get("special_instructions").and_then(|v| v.as_str()))
+        .bind(req.modifiers.clone())
+        .bind(req.special_instructions.as_deref())
         .fetch_one(&mut *conn)
         .await
         .map_err(super::err_db)?;
@@ -167,24 +164,24 @@ pub async fn add_order_item(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": order_id,
-        "check_id": check_id,
-        "menu_item_id": menu_item_id,
-        "item_name": item_name,
-        "quantity": quantity,
-        "line_total": lt,
-        "status": "SENT",
-    })))
+    Ok(Json(AddedOrderLine {
+        id: order_id,
+        check_id,
+        menu_item_id,
+        item_name,
+        quantity,
+        line_total: lt,
+        status: "SENT".to_string(),
+    }))
 }
 
 /// `GET /v1/outlets/{outlet_id}/checks/{check_id}`
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}",
-    params(("id" = uuid::Uuid, Path, description = "Check ID")),
+    params(("check_id" = uuid::Uuid, Path, description = "Check ID")),
     responses(
-        (status = 200, description = "Check details", body = serde_json::Value),
+        (status = 200, description = "Check details", body = CheckDetail),
         (status = 404, description = "Check not found"),
         (status = 403, description = "Missing pos:admin scope"),
     ),
@@ -195,7 +192,7 @@ pub async fn get_check(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<CheckDetail>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -222,37 +219,36 @@ pub async fn get_check(
         .fetch_all(&mut *conn)
         .await
         .map_err(super::err_db)?;
-    let order_items: Vec<serde_json::Value> = orders
+    let order_items: Vec<OrderLine> = orders
         .iter()
         .map(|r| {
             let o_status: String = r.get("status");
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "menu_item_id": r.get::<uuid::Uuid, _>("menu_item_id"),
-                "quantity": r.get::<i32, _>("quantity"),
-                "unit_price": r.get::<String, _>("unit_price"),
-                "line_total": r.get::<String, _>("line_total"),
-                "status": o_status,
-            })
+            OrderLine {
+                id: r.get::<uuid::Uuid, _>("id"),
+                menu_item_id: r.get::<uuid::Uuid, _>("menu_item_id"),
+                quantity: r.get::<i32, _>("quantity"),
+                unit_price: r.get::<String, _>("unit_price"),
+                line_total: r.get::<String, _>("line_total"),
+                status: o_status,
+            }
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": check.get::<uuid::Uuid, _>("id"),
-        "outlet_id": outlet_id,
-        "check_number": check.get::<String, _>("check_number"),
-        "status": status,
-        "guest_name": check.get::<Option<String>, _>("guest_name"),
-        "guest_count": check.get::<i32, _>("guest_count"),
-        "subtotal": check.get::<String, _>("subtotal"),
-        "tax_total": check.get::<String, _>("tax_total"),
-        "total": check.get::<String, _>("total"),
-        "room_number": check.get::<Option<String>, _>("room_number"),
-        "opened_at": check.get::<chrono::DateTime<chrono::Utc>, _>("opened_at"),
-        "orders": order_items,
-    })))
+    Ok(Json(CheckDetail {
+        id: check.get::<uuid::Uuid, _>("id"),
+        outlet_id,
+        check_number: check.get::<String, _>("check_number"),
+        status,
+        guest_name: check.get::<Option<String>, _>("guest_name"),
+        guest_count: check.get::<i32, _>("guest_count"),
+        subtotal: check.get::<String, _>("subtotal"),
+        tax_total: check.get::<String, _>("tax_total"),
+        total: check.get::<String, _>("total"),
+        room_number: check.get::<Option<String>, _>("room_number"),
+        opened_at: check.get::<chrono::DateTime<chrono::Utc>, _>("opened_at"),
+        orders: order_items,
+    }))
 }
-
 // ── Check search - by table, server, status, date, check number ──
 
 /// `GET /v1/outlets/{outlet_id}/checks`
@@ -260,7 +256,7 @@ pub async fn get_check(
     get,
     path = "/v1/outlets/{outlet_id}/checks",
     responses(
-        (status = 200, description = "List of orders", body = serde_json::Value),
+        (status = 200, description = "List of orders", body = CheckList),
         (status = 403, description = "Missing pos:admin scope"),
     ),
     security(("pos:admin" = [])),
@@ -271,7 +267,7 @@ pub async fn search_checks(
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<CheckList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -331,27 +327,31 @@ pub async fn search_checks(
     }
     query = query.bind(limit);
     let rows = query.fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| {
+    let items: Vec<CheckSummary> = rows.iter().map(|r| {
         let st: String = r.get("status");
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id"), "check_number": r.get::<String, _>("check_number"),
-            "status": st, "guest_name": r.get::<Option<String>, _>("guest_name"),
-            "guest_count": r.get::<i32, _>("guest_count"),
-            "subtotal": r.get::<String, _>("subtotal"), "total": r.get::<String, _>("total"),
-            "table_id": r.get::<Option<uuid::Uuid>, _>("table_id"),
-            "opened_at": r.get::<chrono::DateTime<chrono::Utc>, _>("opened_at"),
-        })
+        CheckSummary {
+            id: r.get::<uuid::Uuid, _>("id"),
+            check_number: r.get::<String, _>("check_number"),
+            status: st,
+            guest_name: r.get::<Option<String>, _>("guest_name"),
+            guest_count: r.get::<i32, _>("guest_count"),
+            subtotal: r.get::<String, _>("subtotal"),
+            total: r.get::<String, _>("total"),
+            table_id: r.get::<Option<uuid::Uuid>, _>("table_id"),
+            opened_at: r.get::<chrono::DateTime<chrono::Utc>, _>("opened_at"),
+        }
     }).collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(CheckList { items }))
 }
 
 // ── Check Transfer - to different table ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/transfer",
+    request_body = TransferCheckRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Transferred", body = TransferCheckResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -363,8 +363,8 @@ pub async fn transfer_check(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<TransferCheckRequest>,
+) -> Result<Json<TransferCheckResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -376,16 +376,7 @@ pub async fn transfer_check(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let new_table_id = req
-        .get("new_table_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "new_table_id is required".to_string(),
-            )
-        })?;
+    let new_table_id = req.new_table_id;
     // Verify the new table exists and belongs to this outlet
     let table = sqlx::query("SELECT t.id FROM pos.tables t JOIN pos.service_areas sa ON t.service_area_id = sa.id WHERE t.id = $1 AND sa.revenue_center_id = $2")
         .bind(new_table_id).bind(outlet_id)
@@ -406,17 +397,20 @@ pub async fn transfer_check(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "check_id": check_id, "new_table_id": new_table_id, "transferred": true }),
-    ))
+    Ok(Json(TransferCheckResult {
+        check_id,
+        new_table_id,
+        transferred: true,
+    }))
 }
 
 // ── Check Split - by seat, by item, equally ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/split",
+    request_body = SplitCheckRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Equal split result", body = SplitCheckResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -428,8 +422,8 @@ pub async fn split_check(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<SplitCheckRequest>,
+) -> Result<Json<SplitCheckResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -441,17 +435,14 @@ pub async fn split_check(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let split_type = req
-        .get("split_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("equal");
+    let split_type = req.split_type.clone();
     // Get the original check
     let check = sqlx::query("SELECT id, check_number, subtotal, tax_total, total, guest_count FROM pos.checks WHERE id = $1 AND revenue_center_id = $2")
         .bind(check_id).bind(outlet_id)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let total_str: String = check.get("total");
     let total: rust_decimal::Decimal = total_str.parse().unwrap_or_default();
-    let num_splits: i32 = req.get("num_splits").and_then(|v| v.as_i64()).unwrap_or(2) as i32;
+    let num_splits: i32 = req.num_splits;
     if num_splits < 2 {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -460,22 +451,27 @@ pub async fn split_check(
     }
     // Calculate equal split
     let split_amount = total / rust_decimal::Decimal::from(num_splits);
-    let mut splits: Vec<serde_json::Value> = Vec::new();
+    let mut splits: Vec<SplitPart> = Vec::new();
     for i in 1..=num_splits {
         let new_check_number = format!("{}-S{}", check.get::<String, _>("check_number"), i);
         let row = sqlx::query("INSERT INTO pos.checks (revenue_center_id, check_number, status, guest_count, subtotal, tax_total, total) VALUES ($1, $2, 'OPEN', 1, $3, 0, $4) RETURNING id, check_number")
             .bind(outlet_id).bind(&new_check_number).bind(split_amount.to_string()).bind(split_amount.to_string())
             .fetch_one(&mut *conn).await.map_err(super::err_db)?;
-        splits.push(serde_json::json!({
-            "check_id": row.get::<uuid::Uuid, _>("id"), "check_number": row.get::<String, _>("check_number"),
-            "amount": split_amount.to_string(),
-        }));
+        splits.push(SplitPart {
+            check_id: row.get::<uuid::Uuid, _>("id"),
+            check_number: row.get::<String, _>("check_number"),
+            amount: split_amount.to_string(),
+        });
     }
     emit_tx(&mut *conn, env_id, "hotel8:pos:check:split", serde_json::json!({ "original_check_id": check_id, "split_type": split_type, "num_splits": num_splits, "splits": &splits }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(
-        serde_json::json!({ "original_check_id": check_id, "split_type": split_type, "splits": splits }),
+        SplitCheckResult {
+            original_check_id: check_id,
+            split_type,
+            splits,
+        },
     ))
 }
 
@@ -484,7 +480,7 @@ pub async fn split_check(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/hold",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Check held", body = CheckStateChange),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -496,7 +492,7 @@ pub async fn hold_check(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<CheckStateChange>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -521,15 +517,16 @@ pub async fn hold_check(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "check_id": check_id, "status": "HELD" }),
-    ))
+    Ok(Json(CheckStateChange {
+        check_id,
+        status: "HELD".to_string(),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/recall",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Check recalled", body = CheckStateChange),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -541,7 +538,7 @@ pub async fn recall_check(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<CheckStateChange>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -566,17 +563,19 @@ pub async fn recall_check(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "check_id": check_id, "status": "OPEN" }),
-    ))
+    Ok(Json(CheckStateChange {
+        check_id,
+        status: "OPEN".to_string(),
+    }))
 }
 
 // ── Seat Assignment - assign items to specific seats ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/seat",
+    request_body = AssignSeatRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Seat assigned", body = SeatAssigned),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -588,8 +587,8 @@ pub async fn assign_seat(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_outlet_id, check_id, order_id)): Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<AssignSeatRequest>,
+) -> Result<Json<SeatAssigned>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -601,7 +600,7 @@ pub async fn assign_seat(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let seat_number: i32 = req.get("seat_number").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
+    let seat_number = req.seat_number;
     // Store seat assignment in the order's modifiers JSONB as a special key
     sqlx::query("UPDATE pos.orders SET modifiers = modifiers || jsonb_build_object('seat_number', $3::int), updated_at = now() WHERE id = $1 AND check_id = $2")
         .bind(order_id).bind(check_id).bind(seat_number)
@@ -609,17 +608,22 @@ pub async fn assign_seat(
     emit_tx(&mut *conn, env_id, "hotel8:pos:order:seat_assigned", serde_json::json!({ "check_id": check_id, "order_id": order_id, "seat_number": seat_number }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "order_id": order_id, "seat_number": seat_number, "assigned": true }),
-    ))
+    Ok(Json(SeatAssigned {
+        order_id,
+        seat_number,
+        assigned: true,
+    }))
 }
 
 // ── Void Item ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/orders/void",
+    request_body = VoidOrderItemRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Order item voided", body = OrderItemVoidResult),
+        (status = 400, description = "Already voided"),
+        (status = 403, description = "Manager approval required for voids over $50.00"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -631,8 +635,8 @@ pub async fn void_order_item(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<VoidOrderItemRequest>,
+) -> Result<Json<OrderItemVoidResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -644,19 +648,9 @@ pub async fn void_order_item(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let order_id = req
-        .get("order_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "order_id is required".to_string()))?;
-    let reason = req
-        .get("reason")
-        .and_then(|v| v.as_str())
-        .unwrap_or("voided");
-    let manager_approved = req
-        .get("manager_approved")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let order_id = req.order_id;
+    let reason = req.reason.clone();
+    let manager_approved = req.manager_approved;
     // Get the order to find line_total
     let order = sqlx::query(
         "SELECT id, line_total, status FROM pos.orders WHERE id = $1 AND check_id = $2",
@@ -692,17 +686,23 @@ pub async fn void_order_item(
     emit_tx(&mut *conn, env_id, "hotel8:pos:order:voided", serde_json::json!({ "check_id": check_id, "order_id": order_id, "reason": reason, "amount": &lt_str, "manager_approved": manager_approved }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "order_id": order_id, "voided": true, "reason": reason, "amount_refunded": lt_str }),
-    ))
+    Ok(Json(OrderItemVoidResult {
+        order_id,
+        voided: true,
+        reason: reason.to_string(),
+        amount_refunded: lt_str,
+    }))
 }
 
 // ── Void Check ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/void",
+    request_body = VoidCheckRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Check voided", body = CheckVoidResult),
+        (status = 400, description = "Already voided / paid - refund instead"),
+        (status = 403, description = "Manager approval required for voids over $100.00"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -714,8 +714,8 @@ pub async fn void_check(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<VoidCheckRequest>,
+) -> Result<Json<CheckVoidResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -727,14 +727,8 @@ pub async fn void_check(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let reason = req
-        .get("reason")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "reason is required".to_string()))?;
-    let manager_approved = req
-        .get("manager_approved")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let reason = req.reason.clone();
+    let manager_approved = req.manager_approved;
     // Get the check
     let check = sqlx::query("SELECT id, status, total::text as total FROM pos.checks WHERE id = $1 AND revenue_center_id = $2")
         .bind(check_id).bind(_outlet_id)
@@ -773,7 +767,9 @@ pub async fn void_check(
     emit_tx(&mut *conn, env_id, "hotel8:pos:check:voided", serde_json::json!({ "check_id": check_id, "reason": reason, "manager_approved": manager_approved }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "check_id": check_id, "voided": true, "reason": reason }),
-    ))
+    Ok(Json(CheckVoidResult {
+        check_id,
+        voided: true,
+        reason: reason.to_string(),
+    }))
 }

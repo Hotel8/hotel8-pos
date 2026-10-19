@@ -77,11 +77,12 @@ fn err_emit(e: sentin8::bus::outbox::OutboxError) -> (axum::http::StatusCode, St
 pub fn err_not_found(msg: &str) -> (axum::http::StatusCode, String) {
     (axum::http::StatusCode::NOT_FOUND, msg.to_string())
 }
+
 #[utoipa::path(
     get,
     path = "/v1/health",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = hotel8::pos::contracts::HealthDetail),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -91,12 +92,16 @@ pub fn err_not_found(msg: &str) -> (axum::http::StatusCode, String) {
 
 pub async fn health(
     axum::extract::State(state): axum::extract::State<AppState>,
-) -> axum::Json<serde_json::Value> {
-    axum::Json(serde_json::json!({
-        "status": "ok",
-        "service": "pos",
-        "version": sentin8::build_info::id(),
-            "build": sentin8::build_info::build_hash(),
-        "database": if state.pool.size() > 0 { "connected" } else { "disconnected" },
-    }))
+) -> axum::Json<hotel8::pos::contracts::HealthDetail> {
+    axum::Json(hotel8::pos::contracts::HealthDetail {
+        status: "ok".to_string(),
+        service: "pos".to_string(),
+        version: sentin8::build_info::id(),
+        build: sentin8::build_info::build_hash().to_string(),
+        database: if state.pool.size() > 0 {
+            "connected".to_string()
+        } else {
+            "disconnected".to_string()
+        },
+    })
 }

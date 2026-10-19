@@ -15,6 +15,16 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pos::contracts::{
+    BulkPriceUpdateRequest, BulkPriceUpdateResult, BulkPriceUpdated, ItemAvailabilityRequest,
+    ItemAvailabilityResult, MenuCategoryCreateRequest, MenuCategoryList, MenuCategoryRow,
+    MenuCategoryUpdateRequest, ModifierCreateRequest, ModifierCreated, ModifierGroupCreateRequest,
+    ModifierGroupCreated, ModifierGroupList, ModifierGroupView, ModifierList, ModifierView,
+    PaymentMethodEntry, PaymentMethodUpdate, PrinterGroupCreateRequest, PrinterGroupList,
+    PrinterGroupRow, PrinterGroupUpdateRequest, ServiceAreaCreateRequest, ServiceAreaList,
+    ServiceAreaRow, ServiceAreaRowListView, ServiceAreaUpdateRequest, TaxGroupCreateRequest,
+    TaxGroupList, TaxGroupRow, TaxGroupUpdateRequest,
+};
 use sqlx::Row;
 
 fn err_bad_request(msg: &str) -> (StatusCode, String) {
@@ -27,8 +37,9 @@ fn err_bad_request(msg: &str) -> (StatusCode, String) {
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/service-areas",
+    request_body = ServiceAreaCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ServiceAreaRow", body = ServiceAreaRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -40,8 +51,8 @@ pub async fn create_service_area(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ServiceAreaCreateRequest>,
+) -> Result<Json<ServiceAreaRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -51,8 +62,8 @@ pub async fn create_service_area(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let area_code = req.get("area_code").and_then(|v| v.as_str()).unwrap_or("");
-    let area_name = req.get("area_name").and_then(|v| v.as_str()).unwrap_or("");
+    let area_code = req.area_code.clone();
+    let area_name = req.area_name.clone();
     if area_code.is_empty() || area_name.is_empty() {
         return Err(err_bad_request("area_code and area_name are required"));
     }
@@ -64,7 +75,7 @@ pub async fn create_service_area(
          RETURNING id, area_code, area_name, is_active",
     )
     .bind(outlet_id)
-    .bind(area_code)
+    .bind(&area_code)
     .bind(area_name)
     .fetch_one(&mut *conn)
     .await
@@ -80,19 +91,19 @@ pub async fn create_service_area(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "outlet_id": outlet_id,
-        "area_code": row.get::<String, _>("area_code"),
-        "area_name": row.get::<String, _>("area_name"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(ServiceAreaRow {
+        id,
+        outlet_id,
+        area_code: row.get::<String, _>("area_code"),
+        area_name: row.get::<String, _>("area_name"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/service-areas",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ServiceAreaList", body = ServiceAreaList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -104,7 +115,7 @@ pub async fn list_service_areas(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ServiceAreaList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -124,26 +135,24 @@ pub async fn list_service_areas(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<ServiceAreaRowListView> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "outlet_id": outlet_id,
-                "area_code": r.get::<String, _>("area_code"),
-                "area_name": r.get::<String, _>("area_name"),
-                "is_active": r.get::<bool, _>("is_active"),
-            })
+        .map(|r| ServiceAreaRowListView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            area_code: r.get::<String, _>("area_code"),
+            area_name: r.get::<String, _>("area_name"),
+            is_active: r.get::<bool, _>("is_active"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ServiceAreaList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/outlets/{outlet_id}/service-areas/{area_id}",
+    request_body = ServiceAreaUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ServiceAreaRow", body = ServiceAreaRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -155,8 +164,8 @@ pub async fn update_service_area(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, area_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ServiceAreaUpdateRequest>,
+) -> Result<Json<ServiceAreaRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -166,8 +175,8 @@ pub async fn update_service_area(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let area_name = req.get("area_name").and_then(|v| v.as_str());
-    let is_active = req.get("is_active").and_then(|v| v.as_bool());
+    let area_name = req.area_name.clone();
+    let is_active = req.is_active;
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let row = sqlx::query(
@@ -196,19 +205,19 @@ pub async fn update_service_area(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "outlet_id": outlet_id,
-        "area_code": row.get::<String, _>("area_code"),
-        "area_name": row.get::<String, _>("area_name"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(ServiceAreaRow {
+        id: row.get::<uuid::Uuid, _>("id"),
+        outlet_id,
+        area_code: row.get::<String, _>("area_code"),
+        area_name: row.get::<String, _>("area_name"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/outlets/{outlet_id}/service-areas/{area_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -272,8 +281,9 @@ pub async fn delete_service_area(
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/menu/categories",
+    request_body = MenuCategoryCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "MenuCategoryRow", body = MenuCategoryRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -285,8 +295,8 @@ pub async fn create_menu_category(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<MenuCategoryCreateRequest>,
+) -> Result<Json<MenuCategoryRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -296,19 +306,9 @@ pub async fn create_menu_category(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let category_code = req
-        .get("category_code")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let category_name = req
-        .get("category_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let sort_order: i32 = req
-        .get("sort_order")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32)
-        .unwrap_or(0);
+    let category_code = req.category_code.clone();
+    let category_name = req.category_name.clone();
+    let sort_order: i32 = req.sort_order;
     if category_code.is_empty() || category_name.is_empty() {
         return Err(err_bad_request(
             "category_code and category_name are required",
@@ -323,7 +323,7 @@ pub async fn create_menu_category(
          RETURNING id, category_code, category_name, sort_order, is_active",
     )
     .bind(outlet_id)
-    .bind(category_code)
+    .bind(&category_code)
     .bind(category_name)
     .bind(sort_order)
     .fetch_one(&mut *conn)
@@ -333,20 +333,20 @@ pub async fn create_menu_category(
     emit_tx(&mut *conn, env_id, "hotel8:pos:menu:category:created", serde_json::json!({ "outlet_id": outlet_id, "category_id": id, "category_code": category_code }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "outlet_id": outlet_id,
-        "category_code": row.get::<String, _>("category_code"),
-        "category_name": row.get::<String, _>("category_name"),
-        "sort_order": row.get::<i32, _>("sort_order"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(MenuCategoryRow {
+        id,
+        outlet_id,
+        category_code: row.get::<String, _>("category_code"),
+        category_name: row.get::<String, _>("category_name"),
+        sort_order: row.get::<i32, _>("sort_order"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/menu/categories",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "MenuCategoryList", body = MenuCategoryList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -358,7 +358,7 @@ pub async fn list_menu_categories(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<MenuCategoryList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -380,27 +380,26 @@ pub async fn list_menu_categories(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<MenuCategoryRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "outlet_id": outlet_id,
-                "category_code": r.get::<String, _>("category_code"),
-                "category_name": r.get::<String, _>("category_name"),
-                "sort_order": r.get::<i32, _>("sort_order"),
-                "is_active": r.get::<bool, _>("is_active"),
-            })
+        .map(|r| MenuCategoryRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            outlet_id,
+            category_code: r.get::<String, _>("category_code"),
+            category_name: r.get::<String, _>("category_name"),
+            sort_order: r.get::<i32, _>("sort_order"),
+            is_active: r.get::<bool, _>("is_active"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(MenuCategoryList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/outlets/{outlet_id}/menu/categories/{category_id}",
+    request_body = MenuCategoryUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "MenuCategoryRow", body = MenuCategoryRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -412,8 +411,8 @@ pub async fn update_menu_category(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, category_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<MenuCategoryUpdateRequest>,
+) -> Result<Json<MenuCategoryRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -423,12 +422,9 @@ pub async fn update_menu_category(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let category_name = req.get("category_name").and_then(|v| v.as_str());
-    let sort_order: Option<i32> = req
-        .get("sort_order")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32);
-    let is_active = req.get("is_active").and_then(|v| v.as_bool());
+    let category_name = req.category_name.clone();
+    let sort_order: Option<i32> = req.sort_order;
+    let is_active = req.is_active;
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let row = sqlx::query(
@@ -459,20 +455,20 @@ pub async fn update_menu_category(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "outlet_id": outlet_id,
-        "category_code": row.get::<String, _>("category_code"),
-        "category_name": row.get::<String, _>("category_name"),
-        "sort_order": row.get::<i32, _>("sort_order"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(MenuCategoryRow {
+        id: row.get::<uuid::Uuid, _>("id"),
+        outlet_id,
+        category_code: row.get::<String, _>("category_code"),
+        category_name: row.get::<String, _>("category_name"),
+        sort_order: row.get::<i32, _>("sort_order"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/outlets/{outlet_id}/menu/categories/{category_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -537,8 +533,9 @@ pub async fn delete_menu_category(
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups",
+    request_body = ModifierGroupCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ModifierGroupCreated", body = ModifierGroupCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -550,8 +547,8 @@ pub async fn create_modifier_group(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, item_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ModifierGroupCreateRequest>,
+) -> Result<Json<ModifierGroupCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -561,21 +558,10 @@ pub async fn create_modifier_group(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let group_name = req.get("group_name").and_then(|v| v.as_str()).unwrap_or("");
-    let is_required = req
-        .get("is_required")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let min_selections: i32 = req
-        .get("min_selections")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32)
-        .unwrap_or(0);
-    let max_selections: i32 = req
-        .get("max_selections")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32)
-        .unwrap_or(1);
+    let group_name = req.group_name.clone();
+    let is_required = req.is_required;
+    let min_selections: i32 = req.min_selections;
+    let max_selections: i32 = req.max_selections;
     if group_name.is_empty() {
         return Err(err_bad_request("group_name is required"));
     }
@@ -606,21 +592,21 @@ pub async fn create_modifier_group(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "outlet_id": outlet_id,
-        "item_id": item_id,
-        "group_name": row.get::<String, _>("group_name"),
-        "is_required": row.get::<bool, _>("is_required"),
-        "min_selections": row.get::<i32, _>("min_selections"),
-        "max_selections": row.get::<i32, _>("max_selections"),
-    })))
+    Ok(Json(ModifierGroupCreated {
+        id,
+        outlet_id,
+        item_id,
+        group_name: row.get::<String, _>("group_name"),
+        is_required: row.get::<bool, _>("is_required"),
+        min_selections: row.get::<i32, _>("min_selections"),
+        max_selections: row.get::<i32, _>("max_selections"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ModifierGroupList", body = ModifierGroupList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -632,7 +618,7 @@ pub async fn list_modifier_groups(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, item_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ModifierGroupList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -653,28 +639,26 @@ pub async fn list_modifier_groups(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<ModifierGroupView> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "outlet_id": outlet_id,
-                "item_id": item_id,
-                "group_name": r.get::<String, _>("group_name"),
-                "is_required": r.get::<bool, _>("is_required"),
-                "min_selections": r.get::<i32, _>("min_selections"),
-                "max_selections": r.get::<i32, _>("max_selections"),
-            })
+        .map(|r| ModifierGroupView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            outlet_id,
+            item_id,
+            group_name: r.get::<String, _>("group_name"),
+            is_required: r.get::<bool, _>("is_required"),
+            min_selections: r.get::<i32, _>("min_selections"),
+            max_selections: r.get::<i32, _>("max_selections"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ModifierGroupList { items }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -726,8 +710,9 @@ pub async fn delete_modifier_group(
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers",
+    request_body = ModifierCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ModifierCreated", body = ModifierCreated),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -739,8 +724,8 @@ pub async fn create_modifier(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, item_id, group_id)): Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ModifierCreateRequest>,
+) -> Result<Json<ModifierCreated>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -750,15 +735,8 @@ pub async fn create_modifier(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let modifier_name = req
-        .get("modifier_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let price_adjustment: String = req
-        .get("price_adjustment")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0")
-        .to_string();
+    let modifier_name = req.modifier_name.clone();
+    let price_adjustment: String = req.price_adjustment.clone();
     if modifier_name.is_empty() {
         return Err(err_bad_request("modifier_name is required"));
     }
@@ -780,21 +758,21 @@ pub async fn create_modifier(
     emit_tx(&mut *conn, env_id, "hotel8:pos:modifier:created", serde_json::json!({ "outlet_id": outlet_id, "item_id": item_id, "group_id": group_id, "modifier_id": id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "outlet_id": outlet_id,
-        "item_id": item_id,
-        "group_id": group_id,
-        "modifier_name": row.get::<String, _>("modifier_name"),
-        "price_adjustment": row.get::<String, _>("price_adjustment"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(ModifierCreated {
+        id,
+        outlet_id,
+        item_id,
+        group_id,
+        modifier_name: row.get::<String, _>("modifier_name"),
+        price_adjustment: row.get::<String, _>("price_adjustment"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ModifierList", body = ModifierList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -806,7 +784,7 @@ pub async fn list_modifiers(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, item_id, group_id)): Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ModifierList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -827,28 +805,26 @@ pub async fn list_modifiers(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<ModifierView> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "outlet_id": outlet_id,
-                "item_id": item_id,
-                "group_id": group_id,
-                "modifier_name": r.get::<String, _>("modifier_name"),
-                "price_adjustment": r.get::<String, _>("price_adjustment"),
-                "is_active": r.get::<bool, _>("is_active"),
-            })
+        .map(|r| ModifierView {
+            id: r.get::<uuid::Uuid, _>("id"),
+            outlet_id,
+            item_id,
+            group_id,
+            modifier_name: r.get::<String, _>("modifier_name"),
+            price_adjustment: r.get::<String, _>("price_adjustment"),
+            is_active: r.get::<bool, _>("is_active"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ModifierList { items }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/modifier-groups/{group_id}/modifiers/{modifier_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -898,8 +874,9 @@ pub async fn delete_modifier(
 #[utoipa::path(
     put,
     path = "/v1/outlets/{outlet_id}/menu-items/{item_id}/availability",
+    request_body = ItemAvailabilityRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ItemAvailabilityResult", body = ItemAvailabilityResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -911,8 +888,8 @@ pub async fn update_item_availability(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, item_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ItemAvailabilityRequest>,
+) -> Result<Json<ItemAvailabilityResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -922,11 +899,8 @@ pub async fn update_item_availability(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let is_active = req
-        .get("is_active")
-        .and_then(|v| v.as_bool())
-        .ok_or_else(|| err_bad_request("is_active is required"))?;
-    let reason = req.get("reason").and_then(|v| v.as_str());
+    let is_active = req.is_active;
+    let reason = req.reason.clone();
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let row = sqlx::query(
@@ -957,14 +931,14 @@ pub async fn update_item_availability(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "outlet_id": outlet_id,
-        "item_code": row.get::<String, _>("item_code"),
-        "item_name": row.get::<String, _>("item_name"),
-        "is_active": row.get::<bool, _>("is_active"),
-        "reason": reason,
-    })))
+    Ok(Json(ItemAvailabilityResult {
+        id: row.get::<uuid::Uuid, _>("id"),
+        outlet_id,
+        item_code: row.get::<String, _>("item_code"),
+        item_name: row.get::<String, _>("item_name"),
+        is_active: row.get::<bool, _>("is_active"),
+        reason,
+    }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -973,8 +947,9 @@ pub async fn update_item_availability(
 #[utoipa::path(
     put,
     path = "/v1/outlets/{outlet_id}/menu-items/prices",
+    request_body = BulkPriceUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "BulkPriceUpdateResult", body = BulkPriceUpdateResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -986,8 +961,8 @@ pub async fn bulk_update_prices(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<BulkPriceUpdateRequest>,
+) -> Result<Json<BulkPriceUpdateResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -997,27 +972,16 @@ pub async fn bulk_update_prices(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let updates = req
-        .get("updates")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| err_bad_request("updates array is required"))?;
+    let updates = req.updates.clone();
     if updates.is_empty() {
         return Err(err_bad_request("updates array must not be empty"));
     }
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let mut updated: Vec<serde_json::Value> = Vec::with_capacity(updates.len());
-    for u in updates {
-        let item_id = u
-            .get("item_id")
-            .and_then(|v| v.as_str())
-            .and_then(|s| uuid::Uuid::parse_str(s).ok())
-            .ok_or_else(|| err_bad_request("each update requires item_id"))?;
-        let price: String = u
-            .get("price")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| err_bad_request("each update requires price as string"))?
-            .to_string();
+    let mut updated: Vec<BulkPriceUpdated> = Vec::with_capacity(updates.len());
+    for u in updates.iter() {
+        let item_id = u.item_id;
+        let price: String = u.price.clone();
         let row = sqlx::query(
             "UPDATE pos.menu_items SET price = $1, updated_at = now() \
              WHERE id = $2 AND revenue_center_id = $3 \
@@ -1030,11 +994,11 @@ pub async fn bulk_update_prices(
         .await
         .map_err(super::err_db)?
         .ok_or_else(|| super::err_not_found("menu item not found"))?;
-        updated.push(serde_json::json!({
-            "item_id": row.get::<uuid::Uuid, _>("id"),
-            "item_code": row.get::<String, _>("item_code"),
-            "price": row.get::<String, _>("price"),
-        }));
+        updated.push(BulkPriceUpdated {
+            item_id: row.get::<uuid::Uuid, _>("id"),
+            item_code: row.get::<String, _>("item_code"),
+            price: row.get::<String, _>("price"),
+        });
     }
     emit_tx(
         &mut *conn,
@@ -1046,7 +1010,7 @@ pub async fn bulk_update_prices(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "updated": updated })))
+    Ok(Json(BulkPriceUpdateResult { updated }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1055,8 +1019,9 @@ pub async fn bulk_update_prices(
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/tax-groups",
+    request_body = TaxGroupCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "TaxGroupRow", body = TaxGroupRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1068,8 +1033,8 @@ pub async fn create_tax_group(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<TaxGroupCreateRequest>,
+) -> Result<Json<TaxGroupRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1079,13 +1044,9 @@ pub async fn create_tax_group(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let tax_code = req.get("tax_code").and_then(|v| v.as_str()).unwrap_or("");
-    let tax_name = req.get("tax_name").and_then(|v| v.as_str()).unwrap_or("");
-    let tax_rate: String = req
-        .get("tax_rate")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0")
-        .to_string();
+    let tax_code = req.tax_code.clone();
+    let tax_name = req.tax_name.clone();
+    let tax_rate: String = req.tax_rate.clone();
     if tax_code.is_empty() || tax_name.is_empty() {
         return Err(err_bad_request("tax_code and tax_name are required"));
     }
@@ -1098,7 +1059,7 @@ pub async fn create_tax_group(
          RETURNING id, tax_code, tax_name, tax_rate::text as tax_rate, is_active",
     )
     .bind(outlet_id)
-    .bind(tax_code)
+    .bind(&tax_code)
     .bind(tax_name)
     .bind(&tax_rate)
     .fetch_one(&mut *conn)
@@ -1115,20 +1076,20 @@ pub async fn create_tax_group(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "outlet_id": outlet_id,
-        "tax_code": row.get::<String, _>("tax_code"),
-        "tax_name": row.get::<String, _>("tax_name"),
-        "tax_rate": row.get::<String, _>("tax_rate"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(TaxGroupRow {
+        id,
+        outlet_id,
+        tax_code: row.get::<String, _>("tax_code"),
+        tax_name: row.get::<String, _>("tax_name"),
+        tax_rate: row.get::<String, _>("tax_rate"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/tax-groups",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "TaxGroupList", body = TaxGroupList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1140,7 +1101,7 @@ pub async fn list_tax_groups(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<TaxGroupList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1161,27 +1122,26 @@ pub async fn list_tax_groups(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<TaxGroupRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "outlet_id": outlet_id,
-                "tax_code": r.get::<String, _>("tax_code"),
-                "tax_name": r.get::<String, _>("tax_name"),
-                "tax_rate": r.get::<String, _>("tax_rate"),
-                "is_active": r.get::<bool, _>("is_active"),
-            })
+        .map(|r| TaxGroupRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            outlet_id,
+            tax_code: r.get::<String, _>("tax_code"),
+            tax_name: r.get::<String, _>("tax_name"),
+            tax_rate: r.get::<String, _>("tax_rate"),
+            is_active: r.get::<bool, _>("is_active"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(TaxGroupList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/outlets/{outlet_id}/tax-groups/{tax_id}",
+    request_body = TaxGroupUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "TaxGroupRow", body = TaxGroupRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1193,8 +1153,8 @@ pub async fn update_tax_group(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, tax_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<TaxGroupUpdateRequest>,
+) -> Result<Json<TaxGroupRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1204,12 +1164,9 @@ pub async fn update_tax_group(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let tax_name = req.get("tax_name").and_then(|v| v.as_str());
-    let tax_rate: Option<String> = req
-        .get("tax_rate")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-    let is_active = req.get("is_active").and_then(|v| v.as_bool());
+    let tax_name = req.tax_name.clone();
+    let tax_rate: Option<String> = req.tax_rate.clone();
+    let is_active = req.is_active;
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let row = sqlx::query(
@@ -1240,20 +1197,20 @@ pub async fn update_tax_group(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "outlet_id": outlet_id,
-        "tax_code": row.get::<String, _>("tax_code"),
-        "tax_name": row.get::<String, _>("tax_name"),
-        "tax_rate": row.get::<String, _>("tax_rate"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(TaxGroupRow {
+        id: row.get::<uuid::Uuid, _>("id"),
+        outlet_id,
+        tax_code: row.get::<String, _>("tax_code"),
+        tax_name: row.get::<String, _>("tax_name"),
+        tax_rate: row.get::<String, _>("tax_rate"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/outlets/{outlet_id}/tax-groups/{tax_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1305,8 +1262,9 @@ pub async fn delete_tax_group(
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/printer-groups",
+    request_body = PrinterGroupCreateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "PrinterGroupRow", body = PrinterGroupRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1318,8 +1276,8 @@ pub async fn create_printer_group(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PrinterGroupCreateRequest>,
+) -> Result<Json<PrinterGroupRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1329,15 +1287,9 @@ pub async fn create_printer_group(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let printer_code = req
-        .get("printer_code")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let printer_name = req
-        .get("printer_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let station_code = req.get("station_code").and_then(|v| v.as_str());
+    let printer_code = req.printer_code.clone();
+    let printer_name = req.printer_name.clone();
+    let station_code = req.station_code.clone();
     if printer_code.is_empty() || printer_name.is_empty() {
         return Err(err_bad_request(
             "printer_code and printer_name are required",
@@ -1352,7 +1304,7 @@ pub async fn create_printer_group(
          RETURNING id, printer_code, printer_name, station_code, is_active",
     )
     .bind(outlet_id)
-    .bind(printer_code)
+    .bind(&printer_code)
     .bind(printer_name)
     .bind(station_code)
     .fetch_one(&mut *conn)
@@ -1362,20 +1314,20 @@ pub async fn create_printer_group(
     emit_tx(&mut *conn, env_id, "hotel8:pos:printer_group:created", serde_json::json!({ "outlet_id": outlet_id, "printer_id": id, "printer_code": printer_code }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": id,
-        "outlet_id": outlet_id,
-        "printer_code": row.get::<String, _>("printer_code"),
-        "printer_name": row.get::<String, _>("printer_name"),
-        "station_code": row.get::<Option<String>, _>("station_code"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(PrinterGroupRow {
+        id,
+        outlet_id,
+        printer_code: row.get::<String, _>("printer_code"),
+        printer_name: row.get::<String, _>("printer_name"),
+        station_code: row.get::<Option<String>, _>("station_code"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/outlets/{outlet_id}/printer-groups",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "PrinterGroupList", body = PrinterGroupList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1387,7 +1339,7 @@ pub async fn list_printer_groups(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PrinterGroupList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1408,27 +1360,26 @@ pub async fn list_printer_groups(
     .fetch_all(&mut *conn)
     .await
     .map_err(super::err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<PrinterGroupRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<uuid::Uuid, _>("id"),
-                "outlet_id": outlet_id,
-                "printer_code": r.get::<String, _>("printer_code"),
-                "printer_name": r.get::<String, _>("printer_name"),
-                "station_code": r.get::<Option<String>, _>("station_code"),
-                "is_active": r.get::<bool, _>("is_active"),
-            })
+        .map(|r| PrinterGroupRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            outlet_id,
+            printer_code: r.get::<String, _>("printer_code"),
+            printer_name: r.get::<String, _>("printer_name"),
+            station_code: r.get::<Option<String>, _>("station_code"),
+            is_active: r.get::<bool, _>("is_active"),
         })
         .collect();
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(PrinterGroupList { items }))
 }
 #[utoipa::path(
     put,
     path = "/v1/outlets/{outlet_id}/printer-groups/{printer_id}",
+    request_body = PrinterGroupUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "PrinterGroupRow", body = PrinterGroupRow),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1440,8 +1391,8 @@ pub async fn update_printer_group(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, printer_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PrinterGroupUpdateRequest>,
+) -> Result<Json<PrinterGroupRow>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1451,9 +1402,9 @@ pub async fn update_printer_group(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let printer_name = req.get("printer_name").and_then(|v| v.as_str());
-    let station_code = req.get("station_code").and_then(|v| v.as_str());
-    let is_active = req.get("is_active").and_then(|v| v.as_bool());
+    let printer_name = req.printer_name.clone();
+    let station_code = req.station_code.clone();
+    let is_active = req.is_active;
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
     let row = sqlx::query(
@@ -1484,20 +1435,20 @@ pub async fn update_printer_group(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<uuid::Uuid, _>("id"),
-        "outlet_id": outlet_id,
-        "printer_code": row.get::<String, _>("printer_code"),
-        "printer_name": row.get::<String, _>("printer_name"),
-        "station_code": row.get::<Option<String>, _>("station_code"),
-        "is_active": row.get::<bool, _>("is_active"),
-    })))
+    Ok(Json(PrinterGroupRow {
+        id: row.get::<uuid::Uuid, _>("id"),
+        outlet_id,
+        printer_code: row.get::<String, _>("printer_code"),
+        printer_name: row.get::<String, _>("printer_name"),
+        station_code: row.get::<Option<String>, _>("station_code"),
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/outlets/{outlet_id}/printer-groups/{printer_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1551,7 +1502,7 @@ pub async fn delete_printer_group(
     get,
     path = "/v1/outlets/{outlet_id}/payment-methods",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Supported payment methods (all enabled by default)", body = hotel8::pos::contracts::PaymentMethodList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1563,7 +1514,7 @@ pub async fn get_payment_methods(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<hotel8::pos::contracts::PaymentMethodList>, (StatusCode, String)> {
     let _a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1575,25 +1526,32 @@ pub async fn get_payment_methods(
     // No dedicated payment-methods table: return the static supported list,
     // all enabled by default. Future enhancement: persist overrides on the
     // revenue center as a JSONB column.
-    let methods = serde_json::json!([
-        { "type": "CASH", "is_enabled": true },
-        { "type": "CREDIT_CARD", "is_enabled": true },
-        { "type": "DEBIT_CARD", "is_enabled": true },
-        { "type": "ROOM_CHARGE", "is_enabled": true },
-        { "type": "GIFT_CARD", "is_enabled": true },
-        { "type": "MOBILE_WALLET", "is_enabled": true },
-        { "type": "COMP", "is_enabled": true },
-    ]);
-    Ok(Json(serde_json::json!({
-        "outlet_id": outlet_id,
-        "methods": methods,
-    })))
+    let methods = vec![
+        "CASH",
+        "CREDIT_CARD",
+        "DEBIT_CARD",
+        "ROOM_CHARGE",
+        "GIFT_CARD",
+        "MOBILE_WALLET",
+        "COMP",
+    ]
+    .iter()
+    .map(|t| PaymentMethodEntry {
+        r#type: t.to_string(),
+        is_enabled: true,
+    })
+    .collect();
+    Ok(Json(hotel8::pos::contracts::PaymentMethodList {
+        outlet_id,
+        methods,
+    }))
 }
 #[utoipa::path(
     put,
     path = "/v1/outlets/{outlet_id}/payment-methods",
+    request_body = PaymentMethodUpdate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Payment methods (echoed)", body = hotel8::pos::contracts::PaymentMethodList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1605,8 +1563,8 @@ pub async fn update_payment_methods(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(outlet_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PaymentMethodUpdate>,
+) -> Result<Json<hotel8::pos::contracts::PaymentMethodList>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1616,21 +1574,7 @@ pub async fn update_payment_methods(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let methods = req
-        .get("methods")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| err_bad_request("methods array is required"))?;
-    // Validate each entry.
-    for m in methods {
-        let _t = m
-            .get("type")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| err_bad_request("each method requires a type"))?;
-        let _enabled = m
-            .get("is_enabled")
-            .and_then(|v| v.as_bool())
-            .ok_or_else(|| err_bad_request("each method requires is_enabled (bool)"))?;
-    }
+    let methods = req.methods.clone();
     emit_on_pool(
         &state.pool,
         env_id,
@@ -1640,8 +1584,8 @@ pub async fn update_payment_methods(
     )
     .await
     .map_err(super::err_emit)?;
-    Ok(Json(serde_json::json!({
-        "outlet_id": outlet_id,
-        "methods": methods,
-    })))
+    Ok(Json(hotel8::pos::contracts::PaymentMethodList {
+        outlet_id,
+        methods,
+    }))
 }

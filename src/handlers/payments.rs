@@ -14,15 +14,20 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pos::contracts::{
+    ApplyDiscountRequest, CardPaymentProcessed, CardPaymentRequest, DiscountApplied,
+    GuestRoomLookup, PackageRedeemed, PostPaymentRequest, PostedPayment, RedeemPackageRequest,
+    RoomChargeRequest, RoomChargeResult, SplitPaymentLeg, SplitPaymentRequest, SplitPaymentResult,
+};
 use sqlx::Row;
 
 /// `POST /v1/outlets/{outlet_id}/checks/{check_id}/payments`
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/payments",
-    request_body = serde_json::Value,
+    request_body = PostPaymentRequest,
     responses(
-        (status = 200, description = "Payment posted", body = serde_json::Value),
+        (status = 200, description = "Payment posted", body = PostedPayment),
         (status = 403, description = "Missing pos:admin scope"),
     ),
     security(("pos:admin" = [])),
@@ -32,8 +37,8 @@ pub async fn post_payment(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PostPaymentRequest>,
+) -> Result<Json<PostedPayment>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -46,24 +51,18 @@ pub async fn post_payment(
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
 
-    let payment_type = req
-        .get("payment_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("CASH");
-    let amount_str = req.get("amount").and_then(|v| v.as_str()).unwrap_or("0");
-    let tip_str = req
-        .get("tip_amount")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
-    let reference = req.get("reference").and_then(|v| v.as_str());
-    let room_number = req.get("room_number").and_then(|v| v.as_str());
+    let payment_type = req.payment_type.clone();
+    let amount_str = req.amount.clone();
+    let tip_str = req.tip_amount.clone();
+    let reference = req.reference.clone();
+    let room_number = req.room_number.clone();
 
     let row = sqlx::query("INSERT INTO pos.payments (check_id, payment_type, amount, tip_amount, reference, room_number) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, payment_type, amount::text as amount, tip_amount::text as tip_amount")
         .bind(check_id)
-        .bind(payment_type)
-        .bind(amount_str)
-        .bind(tip_str)
-        .bind(reference)
+        .bind(&payment_type)
+        .bind(&amount_str)
+        .bind(&tip_str)
+        .bind(reference.clone())
         .bind(room_number)
         .fetch_one(&mut *conn)
         .await
@@ -80,23 +79,25 @@ pub async fn post_payment(
     emit_tx(&mut *conn, env_id, "hotel8:pos:payment:posted", serde_json::json!({ "check_id": check_id, "payment_id": payment_id, "amount": &amt, "payment_type": payment_type }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": payment_id,
-        "check_id": check_id,
-        "outlet_id": outlet_id,
-        "payment_type": row.get::<String, _>("payment_type"),
-        "amount": amt,
-        "tip_amount": row.get::<String, _>("tip_amount"),
-        "reference": reference,
-    })))
+    Ok(Json(PostedPayment {
+        id: payment_id,
+        check_id,
+        outlet_id,
+        payment_type: row.get::<String, _>("payment_type"),
+        amount: amt,
+        tip_amount: row.get::<String, _>("tip_amount"),
+        reference,
+    }))
 }
 
 // ── Payments integration - card tokenization, authorization, capture ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/payments-process",
+    request_body = CardPaymentRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Card payment captured (bill8 tokens only)", body = CardPaymentProcessed),
+        (status = 400, description = "card_token missing"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -108,8 +109,8 @@ pub async fn bill8_payments_process_payment(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<CardPaymentRequest>,
+) -> Result<Json<CardPaymentProcessed>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -121,20 +122,9 @@ pub async fn bill8_payments_process_payment(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let token = req
-        .get("card_token")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "card_token is required".to_string(),
-            )
-        })?;
-    let amount_str = req.get("amount").and_then(|v| v.as_str()).unwrap_or("0");
-    let tip_str = req
-        .get("tip_amount")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
+    let token = req.card_token.clone();
+    let amount_str = req.amount.clone();
+    let tip_str = req.tip_amount.clone();
     // Get check total for validation
     let check = sqlx::query(
         "SELECT total::text as total FROM pos.checks WHERE id = $1 AND revenue_center_id = $2",
@@ -150,7 +140,7 @@ pub async fn bill8_payments_process_payment(
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     // Record the payment as CREDIT_CARD
     let row = sqlx::query("INSERT INTO pos.payments (check_id, payment_type, amount, tip_amount, reference) VALUES ($1, 'CREDIT_CARD', $2, $3, $4) RETURNING id, amount::text as amount")
-        .bind(check_id).bind(amount_str).bind(tip_str).bind(token)
+        .bind(check_id).bind(&amount_str).bind(&tip_str).bind(&token)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let payment_id: uuid::Uuid = row.get("id");
     let amt: String = row.get("amount");
@@ -160,19 +150,24 @@ pub async fn bill8_payments_process_payment(
     emit_tx(&mut *conn, env_id, "hotel8:pos:payment:posted", serde_json::json!({ "check_id": check_id, "payment_id": payment_id, "amount": &amt, "payment_type": "CREDIT_CARD", "via": "payments" }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "payment_id": payment_id, "check_id": check_id,
-        "amount": amt, "payment_type": "CREDIT_CARD",
-        "card_token": token, "status": "CAPTURED",
-    })))
+    Ok(Json(CardPaymentProcessed {
+        payment_id,
+        check_id,
+        amount: amt,
+        payment_type: "CREDIT_CARD".to_string(),
+        card_token: token,
+        status: "CAPTURED".to_string(),
+    }))
 }
 
 // ── Split Payment - multiple payment methods per check ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/split-payment",
+    request_body = SplitPaymentRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Split payments posted", body = SplitPaymentResult),
+        (status = 400, description = "payments array missing"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -184,8 +179,8 @@ pub async fn split_payment(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<SplitPaymentRequest>,
+) -> Result<Json<SplitPaymentResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -197,31 +192,20 @@ pub async fn split_payment(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let payments = req
-        .get("payments")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "payments array is required".to_string(),
-            )
-        })?;
-    let mut results: Vec<serde_json::Value> = Vec::new();
-    for p in payments {
-        let ptype = p
-            .get("payment_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("CASH");
-        let amount_str = p.get("amount").and_then(|v| v.as_str()).unwrap_or("0");
-        let tip_str = p.get("tip_amount").and_then(|v| v.as_str()).unwrap_or("0");
-        let reference = p.get("reference").and_then(|v| v.as_str());
+    let payments = req.payments.clone();
+    let mut results: Vec<SplitPaymentLeg> = Vec::new();
+    for p in payments.iter() {
+        let ptype = p.payment_type.clone();
+        let amount_str = p.amount.clone();
+        let tip_str = p.tip_amount.clone();
+        let reference = p.reference.clone();
         let row = sqlx::query("INSERT INTO pos.payments (check_id, payment_type, amount, tip_amount, reference) VALUES ($1, $2, $3, $4, $5) RETURNING id, amount::text as amount")
-            .bind(check_id).bind(ptype).bind(amount_str).bind(tip_str).bind(reference)
+            .bind(check_id).bind(&ptype).bind(&amount_str).bind(&tip_str).bind(&reference)
             .fetch_one(&mut *conn).await.map_err(super::err_db)?;
         let pid: uuid::Uuid = row.get("id");
         let amt: String = row.get("amount");
         results
-            .push(serde_json::json!({ "payment_id": pid, "payment_type": ptype, "amount": amt }));
+            .push(SplitPaymentLeg { payment_id: pid, payment_type: ptype, amount: amt });
     }
     // Update check status
     let _ = sqlx::query("UPDATE pos.checks SET status = CASE WHEN total <= (SELECT COALESCE(SUM(amount), 0) FROM pos.payments WHERE check_id = $1) THEN 'PAID'::pos.check_status ELSE 'PARTIALLY_PAID'::pos.check_status END, closed_at = CASE WHEN total <= (SELECT COALESCE(SUM(amount), 0) FROM pos.payments WHERE check_id = $1) THEN now() ELSE closed_at END, updated_at = now() WHERE id = $1")
@@ -236,19 +220,21 @@ pub async fn split_payment(
     .await
     .map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        serde_json::json!({ "check_id": check_id, "payments": results }),
-    ))
+    Ok(Json(SplitPaymentResult {
+        check_id,
+        payments: results,
+    }))
 }
 
 // ── Discount application - percentage, dollar, promo code, employee meal, manager comp ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/discount",
+    request_body = ApplyDiscountRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Forbidden"),
+        (status = 200, description = "Discount applied", body = DiscountApplied),
+        (status = 400, description = "discount_type missing"),
+        (status = 403, description = "Manager approval required for comp"),
     ),
     security(),
     tag = "pos",
@@ -258,8 +244,8 @@ pub async fn apply_discount(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ApplyDiscountRequest>,
+) -> Result<Json<DiscountApplied>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -271,20 +257,9 @@ pub async fn apply_discount(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let discount_type = req
-        .get("discount_type")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "discount_type is required".to_string(),
-            )
-        })?;
-    let value_str = req.get("value").and_then(|v| v.as_str()).unwrap_or("0");
-    let manager_approved = req
-        .get("manager_approved")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let discount_type = req.discount_type.clone();
+    let value_str = req.value.clone();
+    let manager_approved = req.manager_approved;
     // Get current check total
     let check = sqlx::query("SELECT total::text as total, subtotal::text as subtotal FROM pos.checks WHERE id = $1 AND revenue_center_id = $2")
         .bind(check_id).bind(_outlet_id)
@@ -293,12 +268,12 @@ pub async fn apply_discount(
     let subtotal_str: String = check.get("subtotal");
     let total: rust_decimal::Decimal = total_str.parse().unwrap_or_default();
     let subtotal: rust_decimal::Decimal = subtotal_str.parse().unwrap_or_default();
-    let discount_amount = match discount_type {
+    let discount_amount = match discount_type.as_str() {
         "PERCENTAGE" => {
             let pct: rust_decimal::Decimal = value_str.parse().unwrap_or_default();
             subtotal * pct / rust_decimal::Decimal::new(100, 0)
         }
-        "DOLLAR" => value_str.parse().unwrap_or_default(),
+        "DOLLAR" => value_str.as_str().parse().unwrap_or_default(),
         "EMPLOYEE_MEAL" => subtotal, // 100% comp
         "MANAGER_COMP" => {
             if !manager_approved {
@@ -307,7 +282,7 @@ pub async fn apply_discount(
                     "Manager approval required for comp".to_string(),
                 ));
             }
-            value_str.parse().unwrap_or_default()
+            value_str.as_str().parse().unwrap_or_default()
         }
         _ => rust_decimal::Decimal::ZERO,
     };
@@ -329,21 +304,24 @@ pub async fn apply_discount(
     emit_tx(&mut *conn, env_id, "hotel8:pos:discount:applied", serde_json::json!({ "check_id": check_id, "discount_type": discount_type, "discount_amount": discount_amount.to_string(), "new_total": new_total.to_string(), "manager_approved": manager_approved }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "payment_id": payment_id, "check_id": check_id,
-        "discount_type": discount_type, "discount_amount": discount_amount.to_string(),
-        "new_total": new_total.to_string(),
-    })))
+    Ok(Json(DiscountApplied {
+        payment_id,
+        check_id,
+        discount_type: discount_type.clone(),
+        discount_amount: discount_amount.to_string(),
+        new_total: new_total.to_string(),
+    }))
 }
 
 // ── Room Charge - POST /v1/payments/roomCharge → PMS folio posting ──
 #[utoipa::path(
     post,
     path = "/v1/payments/room-charge",
+    request_body = RoomChargeRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Forbidden"),
+        (status = 200, description = "Posted to folio (PMS event emitted)", body = RoomChargeResult),
+        (status = 400, description = "check_id/room_number missing"),
+        (status = 404, description = "Check not open"),
     ),
     security(),
     tag = "pos",
@@ -352,8 +330,8 @@ pub async fn apply_discount(
 pub async fn room_charge(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<RoomChargeRequest>,
+) -> Result<Json<RoomChargeResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -365,24 +343,9 @@ pub async fn room_charge(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let check_id = req
-        .get("check_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "check_id is required".to_string()))?;
-    let room_number = req
-        .get("room_number")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "room_number is required".to_string(),
-            )
-        })?;
-    let reservation_id = req
-        .get("reservation_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok());
+    let check_id = req.check_id;
+    let room_number = req.room_number.clone();
+    let reservation_id = req.reservation_id;
     // Get check total
     let check = sqlx::query("SELECT total::text as total, revenue_center_id FROM pos.checks WHERE id = $1 AND status NOT IN ('PAID', 'VOIDED')")
         .bind(check_id)
@@ -391,7 +354,7 @@ pub async fn room_charge(
     let outlet_id: uuid::Uuid = check.get("revenue_center_id");
     // Post as ROOM_CHARGE payment
     let row = sqlx::query("INSERT INTO pos.payments (check_id, payment_type, amount, room_number) VALUES ($1, 'ROOM_CHARGE', $2, $3) RETURNING id, amount::text as amount")
-        .bind(check_id).bind(&total_str).bind(room_number)
+        .bind(check_id).bind(&total_str).bind(&room_number)
         .fetch_one(&mut *conn).await.map_err(super::err_db)?;
     let payment_id: uuid::Uuid = row.get("id");
     let amt: String = row.get("amount");
@@ -402,11 +365,14 @@ pub async fn room_charge(
     emit_tx(&mut *conn, env_id, "hotel8:pos:payment:room_charge", serde_json::json!({ "check_id": check_id, "payment_id": payment_id, "room_number": room_number, "reservation_id": reservation_id, "amount": &amt, "outlet_id": outlet_id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "payment_id": payment_id, "check_id": check_id,
-        "room_number": room_number, "amount": amt,
-        "payment_type": "ROOM_CHARGE", "status": "POSTED_TO_FOLIO",
-    })))
+    Ok(Json(RoomChargeResult {
+        payment_id,
+        check_id,
+        room_number,
+        amount: amt,
+        payment_type: "ROOM_CHARGE".to_string(),
+        status: "POSTED_TO_FOLIO".to_string(),
+    }))
 }
 
 // ── PMS guest profile lookup for room charges ──
@@ -414,9 +380,9 @@ pub async fn room_charge(
     get,
     path = "/v1/guests/lookup-by-room",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Forbidden"),
+        (status = 200, description = "In-house guest for the room (PMS projection fields)", body = GuestRoomLookup),
+        (status = 400, description = "room_number missing"),
+        (status = 404, description = "No in-house guest found for this room"),
     ),
     security(),
     tag = "pos-guest",
@@ -426,7 +392,7 @@ pub async fn lookup_guest_by_room(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<GuestRoomLookup>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -479,22 +445,23 @@ pub async fn lookup_guest_by_room(
         })
         .ok_or_else(|| super::err_not_found("No in-house guest found for this room"))?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "reservation_id": found.get("id"),
-        "guest_name": found.get("guest_name"),
-        "room_number": found.get("assigned_room_number"),
-        "guest_profile_id": found.get("guest_profile_id"),
-    })))
+    Ok(Json(GuestRoomLookup {
+        reservation_id: found.get("id").cloned().unwrap_or(serde_json::Value::Null),
+        guest_name: found.get("guest_name").cloned().unwrap_or(serde_json::Value::Null),
+        room_number: found.get("assigned_room_number").cloned().unwrap_or(serde_json::Value::Null),
+        guest_profile_id: found.get("guest_profile_id").cloned().unwrap_or(serde_json::Value::Null),
+    }))
 }
 
 // ── PMS package redemption (e.g., "Breakfast Included" → $0 charge) ──
 #[utoipa::path(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/redeem-package",
+    request_body = RedeemPackageRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Forbidden"),
+        (status = 200, description = "Package redeemed (full $0 COMP payment)", body = PackageRedeemed),
+        (status = 400, description = "package_code/reservation_id missing"),
+        (status = 404, description = "Reservation not found or guest not checked in"),
     ),
     security(),
     tag = "pos",
@@ -504,8 +471,8 @@ pub async fn redeem_package(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_outlet_id, check_id)): Path<(uuid::Uuid, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<RedeemPackageRequest>,
+) -> Result<Json<PackageRedeemed>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -517,25 +484,8 @@ pub async fn redeem_package(
     let env_id = super::resolve_org_env(&a);
     let mut conn = state.pool.begin().await.map_err(super::err_db)?;
     super::set_tenant_context(&mut conn, env_id).await;
-    let package_code = req
-        .get("package_code")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "package_code is required".to_string(),
-            )
-        })?;
-    let reservation_id = req
-        .get("reservation_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "reservation_id is required".to_string(),
-            )
-        })?;
+    let package_code = req.package_code.clone();
+    let reservation_id = req.reservation_id;
     // B1: reservation package verification via the PMS HTTP API.
     let property_id = super::property_id_for_env_pool(&state.pool, env_id)
         .await
@@ -570,9 +520,11 @@ pub async fn redeem_package(
     emit_tx(&mut *conn, env_id, "hotel8:pos:package:redeemed", serde_json::json!({ "check_id": check_id, "payment_id": payment_id, "package_code": package_code, "reservation_id": reservation_id }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "payment_id": payment_id, "check_id": check_id,
-        "package_code": package_code, "redeemed": true,
-        "amount_charged": "0.00",
-    })))
+    Ok(Json(PackageRedeemed {
+        payment_id,
+        check_id,
+        package_code,
+        redeemed: true,
+        amount_charged: "0.00".to_string(),
+    }))
 }

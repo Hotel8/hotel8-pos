@@ -10,14 +10,40 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::pos::contracts::{
+    ManagerApproveRequest, ManagerApproval, OfflineStatus, OfflineSyncRequest, OfflineSyncResult,
+    PosPermissions, RolePermissionRow, SyncedOperation, KitchenRouted,
+};
 use sqlx::Row;
 
 // ── User permissions - Server, Bartender, Shift Manager, General Manager, Administrator ──
+fn pos_role(
+    role: &str,
+    permissions: &[&str],
+    can_void: bool,
+    can_comp: bool,
+    can_discount: bool,
+    void_threshold: &str,
+    comp_threshold: &str,
+    discount_threshold: &str,
+) -> RolePermissionRow {
+    RolePermissionRow {
+        role: role.to_string(),
+        permissions: permissions.iter().map(|p| p.to_string()).collect(),
+        can_void,
+        can_comp,
+        can_discount,
+        void_threshold: void_threshold.to_string(),
+        comp_threshold: comp_threshold.to_string(),
+        discount_threshold: discount_threshold.to_string(),
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/v1/permissions",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "H8POS role permission matrix", body = PosPermissions),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -28,7 +54,7 @@ use sqlx::Row;
 pub async fn get_user_permissions(
     State(_state): State<AppState>,
     headers: axum::http::HeaderMap,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<PosPermissions>, (StatusCode, String)> {
     let _a = auth::verify_token(&_state.config, &headers).await?;
     crate::policy::require(
         &_state.policy,
@@ -38,68 +64,70 @@ pub async fn get_user_permissions(
     )
     .await?;
     // Return the permission matrix for H8POS roles
-    Ok(Json(serde_json::json!({
-        "roles": [
-            {
-                "role": "SERVER",
-                "permissions": ["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:read"],
-                "can_void": false,
-                "can_comp": false,
-                "can_discount": false,
-                "void_threshold": "0.00",
-                "comp_threshold": "0.00",
-                "discount_threshold": "0.00",
-            },
-            {
-                "role": "BARTENDER",
-                "permissions": ["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:read"],
-                "can_void": true,
-                "can_comp": false,
-                "can_discount": true,
-                "void_threshold": "25.00",
-                "comp_threshold": "0.00",
-                "discount_threshold": "10.00",
-            },
-            {
-                "role": "SHIFT_MANAGER",
-                "permissions": ["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:admin", "hotel8:pos:report:read", "hotel8:pos:read"],
-                "can_void": true,
-                "can_comp": true,
-                "can_discount": true,
-                "void_threshold": "100.00",
-                "comp_threshold": "50.00",
-                "discount_threshold": "25.00",
-            },
-            {
-                "role": "GENERAL_MANAGER",
-                "permissions": ["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:admin", "hotel8:pos:report:read", "hotel8:pos:read"],
-                "can_void": true,
-                "can_comp": true,
-                "can_discount": true,
-                "void_threshold": "10000.00",
-                "comp_threshold": "10000.00",
-                "discount_threshold": "10000.00",
-            },
-            {
-                "role": "ADMINISTRATOR",
-                "permissions": ["hotel8:pos:admin", "hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:report:read", "hotel8:pos:read"],
-                "can_void": true,
-                "can_comp": true,
-                "can_discount": true,
-                "void_threshold": "999999.99",
-                "comp_threshold": "999999.99",
-                "discount_threshold": "999999.99",
-            },
+    Ok(Json(PosPermissions {
+        roles: vec![
+            pos_role(
+                "SERVER",
+                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:read"],
+                false,
+                false,
+                false,
+                "0.00",
+                "0.00",
+                "0.00",
+            ),
+            pos_role(
+                "BARTENDER",
+                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:read"],
+                true,
+                false,
+                true,
+                "25.00",
+                "0.00",
+                "10.00",
+            ),
+            pos_role(
+                "SHIFT_MANAGER",
+                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:admin", "hotel8:pos:report:read", "hotel8:pos:read"],
+                true,
+                true,
+                true,
+                "100.00",
+                "50.00",
+                "25.00",
+            ),
+            pos_role(
+                "GENERAL_MANAGER",
+                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:admin", "hotel8:pos:report:read", "hotel8:pos:read"],
+                true,
+                true,
+                true,
+                "10000.00",
+                "10000.00",
+                "10000.00",
+            ),
+            pos_role(
+                "ADMINISTRATOR",
+                &["hotel8:pos:admin", "hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:report:read", "hotel8:pos:read"],
+                true,
+                true,
+                true,
+                "999999.99",
+                "999999.99",
+                "999999.99",
+            ),
         ],
-    })))
+    }))
 }
 
 // ── Manager approval for voids, comps, and discounts above threshold ──
 #[utoipa::path(
     post,
     path = "/v1/manager-approve",
+    request_body = ManagerApproveRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Approval granted", body = ManagerApproval),
+        (status = 400, description = "manager PIN required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -110,8 +138,8 @@ pub async fn get_user_permissions(
 pub async fn manager_approve(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ManagerApproveRequest>,
+) -> Result<Json<ManagerApproval>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -121,22 +149,11 @@ pub async fn manager_approve(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let action_type = req
-        .get("action_type")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "action_type is required".to_string(),
-            )
-        })?;
-    let amount_str = req.get("amount").and_then(|v| v.as_str()).unwrap_or("0");
-    let reference_id = req
-        .get("reference_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let manager_id = req.get("manager_id").and_then(|v| v.as_str()).unwrap_or("");
-    let pin = req.get("pin").and_then(|v| v.as_str()).unwrap_or("");
+    let action_type = req.action_type.clone();
+    let amount_str = req.amount.clone();
+    let reference_id = req.reference_id.clone();
+    let manager_id = req.manager_id.clone();
+    let pin = req.pin.clone();
     // In production, verify the manager PIN against Auth
     if pin.is_empty() {
         return Err((
@@ -158,14 +175,14 @@ pub async fn manager_approve(
     )
     .await
     .map_err(super::err_emit)?;
-    Ok(Json(serde_json::json!({
-        "approval_id": approval_id,
-        "action_type": action_type,
-        "amount": amount_str,
-        "reference_id": reference_id,
-        "approved": true,
-        "approved_by": manager_id,
-    })))
+    Ok(Json(ManagerApproval {
+        approval_id,
+        action_type: action_type.to_string(),
+        amount: amount_str.to_string(),
+        reference_id: reference_id.to_string(),
+        approved: true,
+        approved_by: manager_id.to_string(),
+    }))
 }
 
 // ── Offline support - queue orders and payments locally, sync when reconnected ──
@@ -173,7 +190,7 @@ pub async fn manager_approve(
     get,
     path = "/v1/offline-status",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Terminal offline status", body = OfflineStatus),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -184,7 +201,7 @@ pub async fn manager_approve(
 pub async fn get_offline_status(
     State(_state): State<AppState>,
     headers: axum::http::HeaderMap,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<OfflineStatus>, (StatusCode, String)> {
     let _a = auth::verify_token(&_state.config, &headers).await?;
     crate::policy::require(
         &_state.policy,
@@ -193,19 +210,21 @@ pub async fn get_offline_status(
         sentin8::shield::EvalTarget::new("hotel8:pos:read"),
     )
     .await?;
-    Ok(Json(serde_json::json!({
-        "is_online": true,
-        "queued_operations": 0,
-        "last_sync_at": chrono::Utc::now(),
-        "sync_status": "SYNCED",
-    })))
+    Ok(Json(OfflineStatus {
+        is_online: true,
+        queued_operations: 0,
+        last_sync_at: chrono::Utc::now(),
+        sync_status: "SYNCED".to_string(),
+    }))
 }
 
 #[utoipa::path(
     post,
     path = "/v1/offline-sync",
+    request_body = OfflineSyncRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Sync replay result", body = OfflineSyncResult),
+        (status = 400, description = "operations array required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -215,8 +234,8 @@ pub async fn get_offline_status(
 pub async fn sync_offline_data(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<OfflineSyncRequest>,
+) -> Result<Json<OfflineSyncResult>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -226,23 +245,18 @@ pub async fn sync_offline_data(
     )
     .await?;
     let env_id = super::resolve_org_env(&a);
-    let operations = req
-        .get("operations")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "operations array is required".to_string(),
-            )
-        })?;
-    let mut synced: Vec<serde_json::Value> = Vec::new();
-    for op in operations {
-        let op_type = op.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let status = match op_type {
+    let operations = req.operations.clone();
+    let mut synced: Vec<SyncedOperation> = Vec::new();
+    for op in operations.iter() {
+        let op_type = op.r#type.clone();
+        let status = match op_type.as_str() {
             "check_create" | "order_add" | "payment_post" => "SYNCED",
             _ => "SKIPPED",
         };
-        synced.push(serde_json::json!({ "type": op_type, "status": status }));
+        synced.push(SyncedOperation {
+            r#type: op_type,
+            status: status.to_string(),
+        });
     }
     emit_on_pool(
         &state.pool,
@@ -253,11 +267,11 @@ pub async fn sync_offline_data(
     )
     .await
     .map_err(super::err_emit)?;
-    Ok(Json(serde_json::json!({
-        "synced": synced.len(),
-        "operations": synced,
-        "synced_at": chrono::Utc::now(),
-    })))
+    Ok(Json(OfflineSyncResult {
+        synced: synced.len(),
+        operations: synced,
+        synced_at: chrono::Utc::now(),
+    }))
 }
 
 // ── Kitchen display integration - order routing by printer group ──
@@ -265,7 +279,7 @@ pub async fn sync_offline_data(
     post,
     path = "/v1/outlets/{outlet_id}/checks/{check_id}/orders/{order_id}/route-kitchen",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Routed to kitchen printer group", body = KitchenRouted),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -277,7 +291,7 @@ pub async fn route_order_to_kitchen(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((outlet_id, check_id, order_id)): Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<KitchenRouted>, (StatusCode, String)> {
     let a = auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -330,13 +344,13 @@ pub async fn route_order_to_kitchen(
     .await
     .map_err(super::err_db)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(serde_json::json!({
-        "routing_id": routing_id,
-        "order_id": order_id,
-        "check_id": check_id,
-        "item_name": item_name,
-        "quantity": quantity,
-        "routed_to": "KITCHEN_MAIN",
-        "status": "ROUTED",
-    })))
+    Ok(Json(KitchenRouted {
+        routing_id,
+        order_id,
+        check_id,
+        item_name,
+        quantity,
+        routed_to: "KITCHEN_MAIN".to_string(),
+        status: "ROUTED".to_string(),
+    }))
 }

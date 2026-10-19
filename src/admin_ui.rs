@@ -18,8 +18,10 @@ use sentin8::rfw::widget::*;
 #[utoipa::path(
     get,
     path = "/v1/admin/ui/{page}",
+    params(("page" = String, Path, description = "Admin UI page id (overview | orders | payments | reports | settings | policy pages)")),
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "SDK AdminUiResponse envelope: { page: AdminPage (title + widgets: WidgetCard/WidgetDataTable/WidgetText with data_endpoint routes), status: \"ok\" } - see sentin8::rfw::page::AdminPage / sentin8::rfw::widget::RemoteWidget; policy pages reuse the shared Shield policy-studio definitions under the hotel8:pos domain", body = sentin8::rfw::AdminUiResponse),
+        (status = 404, description = "Unknown admin UI page"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -31,7 +33,7 @@ pub async fn get_admin_ui(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(page): Path<String>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+) -> Result<Json<AdminUiResponse>, (axum::http::StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -85,9 +87,7 @@ pub async fn get_admin_ui(
             ))
         }
     };
-    Ok(Json(
-        serde_json::to_value(AdminUiResponse::page(def)).unwrap(),
-    ))
+    Ok(Json(AdminUiResponse::page(def)))
 }
 
 #[allow(dead_code)]
