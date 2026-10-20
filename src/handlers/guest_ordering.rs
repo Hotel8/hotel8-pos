@@ -84,7 +84,9 @@ pub async fn guest_menu(
         .map(|r| GuestMenuItem {
             id: r.get::<String, _>("id"),
             name: r.get::<String, _>("item_name"),
-            description: r.get::<Option<String>, _>("description").unwrap_or_default(),
+            description: r
+                .get::<Option<String>, _>("description")
+                .unwrap_or_default(),
             price: r.get::<String, _>("price"),
             category: r.get::<String, _>("category"),
         })
@@ -307,15 +309,13 @@ pub async fn guest_get_order(
         reservation_id: check.get::<Option<String>, _>("reservation_id"),
         items: lines
             .iter()
-            .map(|l| {
-                GuestOrderLineView {
-                    id: l.get::<String, _>("id"),
-                    name: l.get::<String, _>("item_name"),
-                    quantity: l.get::<i32, _>("quantity"),
-                    unit_price: l.get::<String, _>("unit_price"),
-                    line_total: l.get::<String, _>("line_total"),
-                    status: l.get::<String, _>("status"),
-                }
+            .map(|l| GuestOrderLineView {
+                id: l.get::<String, _>("id"),
+                name: l.get::<String, _>("item_name"),
+                quantity: l.get::<i32, _>("quantity"),
+                unit_price: l.get::<String, _>("unit_price"),
+                line_total: l.get::<String, _>("line_total"),
+                status: l.get::<String, _>("status"),
             })
             .collect::<Vec<_>>(),
     }))

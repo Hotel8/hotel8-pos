@@ -10,7 +10,7 @@ use crate::handlers::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
-use hotel8::pos::contracts::{MenuItemCreated, MenuItemCreateRequest, MenuItemList, MenuItemRow};
+use hotel8::pos::contracts::{MenuItemCreateRequest, MenuItemCreated, MenuItemList, MenuItemRow};
 use sqlx::Row;
 #[utoipa::path(
     post,

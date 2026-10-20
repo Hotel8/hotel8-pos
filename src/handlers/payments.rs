@@ -204,8 +204,11 @@ pub async fn split_payment(
             .fetch_one(&mut *conn).await.map_err(super::err_db)?;
         let pid: uuid::Uuid = row.get("id");
         let amt: String = row.get("amount");
-        results
-            .push(SplitPaymentLeg { payment_id: pid, payment_type: ptype, amount: amt });
+        results.push(SplitPaymentLeg {
+            payment_id: pid,
+            payment_type: ptype,
+            amount: amt,
+        });
     }
     // Update check status
     let _ = sqlx::query("UPDATE pos.checks SET status = CASE WHEN total <= (SELECT COALESCE(SUM(amount), 0) FROM pos.payments WHERE check_id = $1) THEN 'PAID'::pos.check_status ELSE 'PARTIALLY_PAID'::pos.check_status END, closed_at = CASE WHEN total <= (SELECT COALESCE(SUM(amount), 0) FROM pos.payments WHERE check_id = $1) THEN now() ELSE closed_at END, updated_at = now() WHERE id = $1")
@@ -447,9 +450,18 @@ pub async fn lookup_guest_by_room(
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(GuestRoomLookup {
         reservation_id: found.get("id").cloned().unwrap_or(serde_json::Value::Null),
-        guest_name: found.get("guest_name").cloned().unwrap_or(serde_json::Value::Null),
-        room_number: found.get("assigned_room_number").cloned().unwrap_or(serde_json::Value::Null),
-        guest_profile_id: found.get("guest_profile_id").cloned().unwrap_or(serde_json::Value::Null),
+        guest_name: found
+            .get("guest_name")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+        room_number: found
+            .get("assigned_room_number")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+        guest_profile_id: found
+            .get("guest_profile_id")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
     }))
 }
 

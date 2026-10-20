@@ -12,7 +12,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pos::contracts::{
-    AddedOrderLine, AddOrderItemRequest, AssignSeatRequest, CheckCreated, CheckCreateRequest,
+    AddOrderItemRequest, AddedOrderLine, AssignSeatRequest, CheckCreateRequest, CheckCreated,
     CheckDetail, CheckList, CheckStateChange, CheckSummary, CheckVoidResult, OrderItemVoidResult,
     OrderLine, SeatAssigned, SplitCheckRequest, SplitCheckResult, SplitPart, TransferCheckRequest,
     TransferCheckResult, VoidCheckRequest, VoidOrderItemRequest,
@@ -327,20 +327,23 @@ pub async fn search_checks(
     }
     query = query.bind(limit);
     let rows = query.fetch_all(&mut *conn).await.map_err(super::err_db)?;
-    let items: Vec<CheckSummary> = rows.iter().map(|r| {
-        let st: String = r.get("status");
-        CheckSummary {
-            id: r.get::<uuid::Uuid, _>("id"),
-            check_number: r.get::<String, _>("check_number"),
-            status: st,
-            guest_name: r.get::<Option<String>, _>("guest_name"),
-            guest_count: r.get::<i32, _>("guest_count"),
-            subtotal: r.get::<String, _>("subtotal"),
-            total: r.get::<String, _>("total"),
-            table_id: r.get::<Option<uuid::Uuid>, _>("table_id"),
-            opened_at: r.get::<chrono::DateTime<chrono::Utc>, _>("opened_at"),
-        }
-    }).collect();
+    let items: Vec<CheckSummary> = rows
+        .iter()
+        .map(|r| {
+            let st: String = r.get("status");
+            CheckSummary {
+                id: r.get::<uuid::Uuid, _>("id"),
+                check_number: r.get::<String, _>("check_number"),
+                status: st,
+                guest_name: r.get::<Option<String>, _>("guest_name"),
+                guest_count: r.get::<i32, _>("guest_count"),
+                subtotal: r.get::<String, _>("subtotal"),
+                total: r.get::<String, _>("total"),
+                table_id: r.get::<Option<uuid::Uuid>, _>("table_id"),
+                opened_at: r.get::<chrono::DateTime<chrono::Utc>, _>("opened_at"),
+            }
+        })
+        .collect();
     conn.commit().await.map_err(super::err_db)?;
     Ok(Json(CheckList { items }))
 }
@@ -466,13 +469,11 @@ pub async fn split_check(
     emit_tx(&mut *conn, env_id, "hotel8:pos:check:split", serde_json::json!({ "original_check_id": check_id, "split_type": split_type, "num_splits": num_splits, "splits": &splits }),
         &crate::event_emit::Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(super::err_emit)?;
     conn.commit().await.map_err(super::err_db)?;
-    Ok(Json(
-        SplitCheckResult {
-            original_check_id: check_id,
-            split_type,
-            splits,
-        },
-    ))
+    Ok(Json(SplitCheckResult {
+        original_check_id: check_id,
+        split_type,
+        splits,
+    }))
 }
 
 // ── Check Hold/Recall ──

@@ -11,8 +11,8 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pos::contracts::{
-    ManagerApproveRequest, ManagerApproval, OfflineStatus, OfflineSyncRequest, OfflineSyncResult,
-    PosPermissions, RolePermissionRow, SyncedOperation, KitchenRouted,
+    KitchenRouted, ManagerApproval, ManagerApproveRequest, OfflineStatus, OfflineSyncRequest,
+    OfflineSyncResult, PosPermissions, RolePermissionRow, SyncedOperation,
 };
 use sqlx::Row;
 
@@ -68,7 +68,12 @@ pub async fn get_user_permissions(
         roles: vec![
             pos_role(
                 "SERVER",
-                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:read"],
+                &[
+                    "hotel8:pos:order:write",
+                    "hotel8:pos:order:read",
+                    "hotel8:pos:payment:write",
+                    "hotel8:pos:read",
+                ],
                 false,
                 false,
                 false,
@@ -78,7 +83,12 @@ pub async fn get_user_permissions(
             ),
             pos_role(
                 "BARTENDER",
-                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:read"],
+                &[
+                    "hotel8:pos:order:write",
+                    "hotel8:pos:order:read",
+                    "hotel8:pos:payment:write",
+                    "hotel8:pos:read",
+                ],
                 true,
                 false,
                 true,
@@ -88,7 +98,14 @@ pub async fn get_user_permissions(
             ),
             pos_role(
                 "SHIFT_MANAGER",
-                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:admin", "hotel8:pos:report:read", "hotel8:pos:read"],
+                &[
+                    "hotel8:pos:order:write",
+                    "hotel8:pos:order:read",
+                    "hotel8:pos:payment:write",
+                    "hotel8:pos:admin",
+                    "hotel8:pos:report:read",
+                    "hotel8:pos:read",
+                ],
                 true,
                 true,
                 true,
@@ -98,7 +115,14 @@ pub async fn get_user_permissions(
             ),
             pos_role(
                 "GENERAL_MANAGER",
-                &["hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:admin", "hotel8:pos:report:read", "hotel8:pos:read"],
+                &[
+                    "hotel8:pos:order:write",
+                    "hotel8:pos:order:read",
+                    "hotel8:pos:payment:write",
+                    "hotel8:pos:admin",
+                    "hotel8:pos:report:read",
+                    "hotel8:pos:read",
+                ],
                 true,
                 true,
                 true,
@@ -108,7 +132,14 @@ pub async fn get_user_permissions(
             ),
             pos_role(
                 "ADMINISTRATOR",
-                &["hotel8:pos:admin", "hotel8:pos:order:write", "hotel8:pos:order:read", "hotel8:pos:payment:write", "hotel8:pos:report:read", "hotel8:pos:read"],
+                &[
+                    "hotel8:pos:admin",
+                    "hotel8:pos:order:write",
+                    "hotel8:pos:order:read",
+                    "hotel8:pos:payment:write",
+                    "hotel8:pos:report:read",
+                    "hotel8:pos:read",
+                ],
                 true,
                 true,
                 true,

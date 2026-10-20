@@ -12,7 +12,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::pos::contracts::{
-    CombinedSourceTable, CombineTablesRequest, CombineTablesResult, FloorPlan, FloorPlanArea,
+    CombineTablesRequest, CombineTablesResult, CombinedSourceTable, FloorPlan, FloorPlanArea,
     FloorPlanTable, PosTable, PosTableDeleted, PosTableList, PosTableListView,
     SeparateTablesRequest, SeparateTablesResult, TableCreateRequest, TableStatusChange,
     TableUpdateRequest,
@@ -748,7 +748,7 @@ pub async fn combine_tables(
          RETURNING id, service_area_id, table_number, table_name, capacity, \
                   status::text as status, current_check_id, created_at, updated_at",
     )
-.bind(service_area_id)
+    .bind(service_area_id)
     .bind(&combined_table_number)
     .bind(&combined_name)
     .bind(total_capacity)

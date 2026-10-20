@@ -238,4 +238,5 @@ use utoipa::OpenApi;
         (name = "policy", description = "Shield policy administration (shared surface)"),
         (name = "pos", description = "Hotel8:POS admin API - orders, payments, reports"),
     ),
-)]pub struct PosOpenApi;
+)]
+pub struct PosOpenApi;

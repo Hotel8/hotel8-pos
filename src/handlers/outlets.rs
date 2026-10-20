@@ -10,7 +10,7 @@ use crate::handlers::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
-use hotel8::pos::contracts::{OutletCreated, OutletCreateRequest, OutletList, OutletRow};
+use hotel8::pos::contracts::{OutletCreateRequest, OutletCreated, OutletList, OutletRow};
 use sqlx::Row;
 #[utoipa::path(
     post,

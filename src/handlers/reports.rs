@@ -214,8 +214,7 @@ pub async fn labor_report(
             },
         ],
         total_labor_cost: "1760.00".to_string(),
-        note: "Labor data is a placeholder - integrate with HR/scheduling system"
-            .to_string(),
+        note: "Labor data is a placeholder - integrate with HR/scheduling system".to_string(),
     }))
 }
 
