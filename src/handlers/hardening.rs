@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:POS
 // SPDX-License-Identifier: Apache-2.0
 
-//! H8POS hardening handlers - -.
+//! H8POS hardening handlers -.
 use crate::auth;
 use crate::event_emit::{emit_on_pool, emit_tx};
 use crate::handlers::AppState;
